@@ -1,0 +1,46 @@
+name: Compatibility report / 兼容性报告
+description: Provide evidence for a new MSI laptop model / 为新的 MSI 笔记本机型提供验证证据
+title: "[Compatibility] "
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: Read docs/COMPATIBILITY.md first. Do not test while the computer is unattended or under critical load. / 请先阅读兼容性文档，不要在无人看管或临界高负载时测试。
+  - type: input
+    id: model
+    attributes:
+      label: Exact model / 完整机型
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: BIOS and EC firmware / BIOS 与 EC 固件
+    validations:
+      required: true
+  - type: input
+    id: wmi
+    attributes:
+      label: MSI WMI version / MSI WMI 版本
+    validations:
+      required: true
+  - type: input
+    id: fans
+    attributes:
+      label: Physical fan count / 物理风扇数量
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Read-back and RPM evidence / 回读与 RPM 证据
+      description: Include Automatic restoration, curve read-back, RPM response, and Full Blast recovery. / 包含自动模式恢复、曲线回读、RPM 响应和狂暴散热恢复。
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation / 安全确认
+      options:
+        - label: I restored Automatic mode and confirmed normal temperatures. / 我已恢复自动模式并确认温度正常。
+          required: true

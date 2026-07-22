@@ -1,0 +1,37 @@
+name: Bug report / 错误报告
+description: Report a reproducible software problem / 报告可复现的软件问题
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not use this form to request unverified fan-control support. / 请勿用此表格申请未经验证的风扇控制支持。
+  - type: input
+    id: version
+    attributes:
+      label: App version / 应用版本
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Exact computer model / 完整电脑型号
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and steps / 问题与复现步骤
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / 相关日志
+      description: Remove personal information before posting. / 发布前请删除个人信息。

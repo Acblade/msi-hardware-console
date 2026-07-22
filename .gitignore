@@ -1,0 +1,7 @@
+artifacts/
+dist/
+*.user
+*.suo
+*.log
+src/*-QA.exe
+src/*-preview.png
