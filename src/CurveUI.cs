@@ -301,7 +301,7 @@ namespace MsiHardwareConsole
             footer.Children.Add(new TextBlock
             {
                 Text = editable
-                    ? Localization.T("Available duty: 0%, 30–60%, and the fixed 100% safety point.", "可用转速：0%、30–60%，以及固定的 100% 高温保护点。")
+                    ? Localization.T("Available duty: 0%, 30–60%, and 100%; the last point needs 10 sustained seconds, while extreme heat protects immediately.", "可用转速：0%、30–60%、100%；末节点持续 10 秒才全速，极高温立即保护。")
                     : Localization.T("Temperature is horizontal; fan duty is vertical.", "横轴是温度，纵轴是风扇转速百分比。"),
                 Foreground = new SolidColorBrush(Color.FromRgb(104, 117, 138)),
                 FontSize = 11,

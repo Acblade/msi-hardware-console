@@ -5,7 +5,7 @@
 An unofficial, lightweight Windows dashboard and MSI laptop fan controller. It shows CPU/GPU utilization and temperatures, storage usage, fan RPM, fan modes, and editable temperature-to-fan curves without requiring MSI Center.
 
 > [!WARNING]
-> Fan control writes to firmware through MSI's ACPI WMI interface. Hardware support is model-specific. Version 0.1.0 enables fan writes only on the verified MSI Cyborg 15 A13VE with WMI interface 2.8; other systems run in monitoring-only mode.
+> Fan control writes to firmware through MSI's ACPI WMI interface. Hardware support is model-specific. Version 0.1.1 enables fan writes only on the verified MSI Cyborg 15 A13VE with WMI interface 2.8; other systems run in monitoring-only mode.
 
 ![English dashboard](docs/images/dashboard-en.png)
 
@@ -24,7 +24,7 @@ It is worth sharing as an early open-source utility for owners of the verified m
 - Live fan RPM and firmware performance profile
 - Automatic, Silent, Balanced, Boost, Fixed, Custom, and Full Blast controls
 - Editable seven-point temperature/fan curve
-- Safe normal-duty range: fan-off or 30–60%; the 85°C safety point is fixed at Full Blast
+- Safe normal-duty range: fan-off or 30–60%; sustained high temperature enables Full Blast protection
 - English by default, with immediate Simplified Chinese switching
 - Rounded light UI, notification-area operation, and optional elevated startup
 - No MSI Center, MSI Center SDK, or kernel driver dependency
@@ -45,22 +45,22 @@ See [COMPATIBILITY.md](docs/COMPATIBILITY.md) before requesting support for anot
 
 ## Download and use
 
-1. Download `MSI-Hardware-Console-v0.1.0-win-x64.zip` from GitHub Releases.
+1. Download `MSI-Hardware-Console-v0.1.1-win-x64.zip` from GitHub Releases.
 2. Extract the entire archive.
 3. Run `MSIHardwareConsole.exe` and approve the Windows administrator prompt.
 4. The public build starts in English. Click **中文** in the upper-right corner to switch languages.
-5. On verified hardware, click a fan-mode card to apply it. Right-click a mode to inspect its curve.
+5. On verified hardware, click a fan-mode card to apply it. Right-click a manual mode to inspect its curve or Automatic to read its firmware-policy explanation.
 6. Choose **Automatic** before uninstalling or when you want to return fan control to firmware.
 
 The executable is currently unsigned, so Windows SmartScreen may show an unknown-publisher warning. Verify the SHA-256 value attached to the GitHub release.
 
 ## Fan-control behavior
 
-- `Automatic` returns fan decisions to MSI firmware.
+- `Automatic` returns fan decisions to MSI firmware and does not claim a fixed percentage curve that firmware does not expose.
 - `Silent`, `Balanced`, and `Boost` write verified seven-point curves.
-- `Fixed` holds a normal fan duty from 30–60% or explicitly turns the fan off.
+- `Fixed` holds a normal fan duty from 30–60%. Its button toggles the fan off and back on; the slider is disabled while off and restores the previous duty when enabled.
 - `Custom` allows 0% or 30–60% for its first six points.
-- The final 85°C point is fixed at 100% and activates MSI Full Blast with 3°C release hysteresis.
+- The last point is fixed at 100% as a safety trigger. Full Blast starts after 10 sustained seconds there, or immediately at least 5°C higher (never below 90°C), and releases after 10 seconds below its 3°C hysteresis point.
 - `Full Blast` directly enables the firmware's maximum-speed bit.
 
 Ordinary curve values from 61–99% are intentionally unavailable because the verified firmware caps its normal curve range at roughly 60%. Showing unavailable values would be misleading.
@@ -114,6 +114,6 @@ MSI and MSI Center are trademarks of Micro-Star INT'L CO., LTD. This community p
 
 MSI Hardware Console 是一个非官方的轻量 Windows 硬件面板，可显示 CPU/GPU 占用率与温度、硬盘空间、风扇转速，并在兼容机型上直接设置风扇模式和温度曲线，不依赖 MSI Center。
 
-公开版默认英文，可在右上角即时切换简体中文。0.1.0 版本只确认支持 **MSI Cyborg 15 A13VE、WMI 2.8、单风扇**；其他电脑默认锁定风扇写入，仅提供监控，避免在未验证固件上冒险操作。
+公开版默认英文，可在右上角即时切换简体中文。0.1.1 版本只确认支持 **MSI Cyborg 15 A13VE、WMI 2.8、单风扇**；其他电脑默认锁定风扇写入，仅提供监控，避免在未验证固件上冒险操作。
 
 完整中文说明见 [README.zh-CN.md](README.zh-CN.md)。
