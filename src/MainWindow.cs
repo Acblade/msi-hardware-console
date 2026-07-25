@@ -75,7 +75,6 @@ namespace MsiHardwareConsole
         private TextBlock autoStartDetail;
         private Border blastCard;
         private FrameworkElement fanHeaderElement;
-        private FanCurve factoryReference;
         private string activeMode;
         private string modeBeforeBlast = "Automatic";
         private bool connected;
@@ -83,6 +82,8 @@ namespace MsiHardwareConsole
         private HardwareCompatibility compatibility;
         private bool applying;
         private bool modeUsesFullBlast;
+        private DateTime fullBlastHighSinceUtc = DateTime.MinValue;
+        private DateTime fullBlastCoolSinceUtc = DateTime.MinValue;
         private bool fixedFanOff;
         private bool exitRequested;
         private bool initializingSettings = true;
@@ -145,9 +146,6 @@ namespace MsiHardwareConsole
                     connected = true;
                     compatibility = HardwareCompatibility.Detect(controller.Version);
                     fanControlVerified = compatibility.FanControlVerified;
-                    factoryReference = new FanCurve(
-                        new[] { 40, 50, 57, 64, 71, 78, 85 },
-                        new[] { 38, 40, 45, 54, 60, 68, 78 });
                     if (fanControlVerified) ApplyMode(activeMode, false);
                     else SetFanStatus(T("Monitoring only · fan writes are locked on unverified hardware · ", "仅监控 · 未验证硬件已锁定风扇写入 · ") + compatibility.Model + " · WMI " + compatibility.WmiVersion, WarningBrush);
                 }
@@ -501,6 +499,7 @@ namespace MsiHardwareConsole
                 IsSnapToTickEnabled = false,
                 Value = settings.FixedRunningFanSpeed,
                 VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.Hand,
                 ToolTip = T("Keeps the selected fan duty after you release the slider (30–60%)", "拖动后，风扇会持续保持所选转速（30–60%）")
             };
             fixedValue = new TextBlock { Width = 50, TextAlignment = TextAlignment.Right, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = PurpleBrush, VerticalAlignment = VerticalAlignment.Center };
@@ -513,12 +512,11 @@ namespace MsiHardwareConsole
                 FontSize = 11,
                 FontWeight = FontWeights.SemiBold,
                 Cursor = Cursors.Hand,
-                ToolTip = T("Stops the fan; the 85°C safety point still enables Full Blast", "立即让风扇停转；温度达到 85°C 时仍会自动全速保护")
+                ToolTip = T("Turn the fixed fan duty off or back on", "切换固定转速的开启或关闭")
             };
             ApplyRoundedButtonTemplate(fixedOffButton, 12);
             fixedSlider.ValueChanged += delegate
             {
-                fixedFanOff = false;
                 UpdateFixedControls();
             };
             fixedSlider.PreviewMouseLeftButtonUp += delegate { if (activeMode == "Fixed") ApplyMode("Fixed", true); };
@@ -526,7 +524,12 @@ namespace MsiHardwareConsole
             fixedOffButton.Click += delegate(object sender, RoutedEventArgs e)
             {
                 e.Handled = true;
-                fixedFanOff = true;
+                if (!fanControlVerified || !connected || applying)
+                {
+                    ApplyMode("Fixed", true);
+                    return;
+                }
+                fixedFanOff = !fixedFanOff;
                 UpdateFixedControls();
                 ApplyMode("Fixed", true);
             };
@@ -537,10 +540,10 @@ namespace MsiHardwareConsole
             fixedLine.Children.Add(fixedOffButton);
             fixedExtra.Children.Add(fixedLine);
             UpdateFixedControls();
-            AddModeCard(grid, "Fixed", T("Fixed", "固定"), T("Hold 30–60% · fan-off available", "持续保持 30–60% · 可一键关闭"), T("Use the slider for a constant duty; use Full Blast above for maximum speed.", "拖动滑条设定持续转速；需要满速请点上方“狂暴散热”。"), PurpleBrush, 0, 2, fixedExtra);
+            AddModeCard(grid, "Fixed", T("Fixed", "固定"), T("Hold 30–60% · turn off or on", "持续保持 30–60% · 可关闭或开启"), T("The slider locks while off; turning it back on restores the previous duty.", "关闭后滑条会锁定；重新开启将恢复上次设定的转速。"), PurpleBrush, 0, 2, fixedExtra);
 
             var customExtra = new TextBlock { Text = T("Right-click to edit   ●━━●━━●", "右键编辑曲线   ●━━●━━●"), Foreground = AccentBrush, FontSize = 11, Margin = new Thickness(0, 10, 0, 0), FontWeight = FontWeights.SemiBold };
-            AddModeCard(grid, "Custom", T("Custom", "自定义"), T("Verified curve · high-temperature Full Blast", "可验证曲线 · 高温全速"), T("First six points: 0% or 30–60% · 85°C fixed at Full Blast.", "前六点为 0% 或 30–60% · 85°C 固定全速。"), AccentBrush, 1, 0, customExtra);
+            AddModeCard(grid, "Custom", T("Custom", "自定义"), T("Verified curve · high-temperature protection", "可验证曲线 · 高温保护"), T("First six points: 0% or 30–60% · sustained high temperature enables Full Blast.", "前六点为 0% 或 30–60% · 高温持续 10 秒才全速。"), AccentBrush, 1, 0, customExtra);
             AddModeCard(grid, "Silent", T("Silent", "静音"), T("Gentle ramp · high-temperature protection", "温和升速 · 高温保护"), T("Quieter at light load; Full Blast at the safety point.", "轻负载更安静，达到高温点后全速。"), TealBrush, 0, 1, null);
             AddModeCard(grid, "Balanced", T("Balanced", "均衡"), T("Everyday curve · high-temperature protection", "日用曲线 · 高温保护"), T("A daily balance of performance, temperature, and noise.", "性能、温度和噪音的日常折中。"), GoodBrush, 1, 1, null);
             AddModeCard(grid, "Boost", T("Boost", "强冷"), T("Reaches 60% earlier · high-temperature Full Blast", "更早达到 60% · 高温全速"), T("For games, rendering, and sustained workloads.", "适合游戏、渲染和持续高负载。"), WarningBrush, 1, 2, null);
@@ -711,6 +714,7 @@ namespace MsiHardwareConsole
                 else
                 {
                     modeBeforeBlast = activeMode;
+                    ResetFullBlastGuard();
                     controller.SetFullBlast(true);
                     modeUsesFullBlast = false;
                     HardwareSnapshot snapshot = controller.GetSnapshot();
@@ -732,6 +736,7 @@ namespace MsiHardwareConsole
         private void ApplyHardwareMode(string key)
         {
             FanCurve expectedCurve = key == "Automatic" ? null : GetCurveForMode(key);
+            ResetFullBlastGuard();
 
             if (key == "Automatic") controller.SetAutomatic();
             else controller.SetFanCurve(expectedCurve);
@@ -757,12 +762,59 @@ namespace MsiHardwareConsole
             }
         }
 
-        private bool ShouldUseFullBlast(string key, FanCurve curve, HardwareSnapshot snapshot, bool hysteresis)
+        private bool ShouldUseFullBlast(string key, FanCurve curve, HardwareSnapshot snapshot, bool currentlyActive)
         {
-            if (curve == null || curve.Speeds[6] != 100) return false;
+            if (key == "Automatic" || curve == null || curve.Speeds[6] != 100)
+            {
+                ResetFullBlastGuard();
+                return false;
+            }
+
             int temperature = Math.Max(snapshot.CpuTemperature, snapshot.GpuTemperature);
-            int threshold = curve.Temperatures[6] - (hysteresis ? 3 : 0);
-            return temperature >= threshold;
+            int sustainedThreshold = curve.Temperatures[6];
+            int emergencyThreshold = Math.Max(90, sustainedThreshold + 5);
+            DateTime now = DateTime.UtcNow;
+
+            if (currentlyActive)
+            {
+                fullBlastHighSinceUtc = DateTime.MinValue;
+                if (temperature < sustainedThreshold - 3)
+                {
+                    if (fullBlastCoolSinceUtc == DateTime.MinValue) fullBlastCoolSinceUtc = now;
+                    if ((now - fullBlastCoolSinceUtc).TotalSeconds >= 10)
+                    {
+                        ResetFullBlastGuard();
+                        return false;
+                    }
+                }
+                else fullBlastCoolSinceUtc = DateTime.MinValue;
+                return true;
+            }
+
+            fullBlastCoolSinceUtc = DateTime.MinValue;
+            if (temperature >= emergencyThreshold)
+            {
+                fullBlastHighSinceUtc = DateTime.MinValue;
+                return true;
+            }
+
+            if (temperature >= sustainedThreshold)
+            {
+                if (fullBlastHighSinceUtc == DateTime.MinValue) fullBlastHighSinceUtc = now;
+                if ((now - fullBlastHighSinceUtc).TotalSeconds >= 10)
+                {
+                    fullBlastHighSinceUtc = DateTime.MinValue;
+                    return true;
+                }
+            }
+            else fullBlastHighSinceUtc = DateTime.MinValue;
+            return false;
+        }
+
+        private void ResetFullBlastGuard()
+        {
+            fullBlastHighSinceUtc = DateTime.MinValue;
+            fullBlastCoolSinceUtc = DateTime.MinValue;
         }
 
         private FanCurve GetCurveForMode(string key)
@@ -777,7 +829,7 @@ namespace MsiHardwareConsole
                     int fixedSpeed = fixedSlider == null ? settings.FixedFanSpeed : FixedFanDutyFromSlider();
                     return new FanCurve(temps, new[] { fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, 100 });
                 case "Custom": return new FanCurve(settings.CustomTemperatures, settings.CustomSpeeds);
-                default: return factoryReference ?? new FanCurve(temps, new[] { 38, 40, 45, 54, 60, 68, 78 });
+                default: return null;
             }
         }
 
@@ -787,7 +839,7 @@ namespace MsiHardwareConsole
             {
                 var chart = new FanCurveChart(GetCurveForMode("Custom"), true, AccentBrush) { Height = 350 };
                 ShowOverlay(T("Custom", "自定义"), T("Drag points, then save to write the curve to MSI WMI2.", "拖动节点后保存，曲线会立即写入 MSI WMI2。"), chart,
-                    T("The first six points allow 0% or 30–60%; the 85°C safety point is fixed at 100%.", "前六个温度点可用 0% 或 30–60%；85°C 节点固定为 100% 保护。"), T("Save and apply", "保存并应用"), delegate
+                    T("The first six points allow 0% or 30–60%. The last point needs 10 sustained seconds; at least 5°C higher enables immediate protection.", "前六个温度点可用 0% 或 30–60%；末节点持续 10 秒才全速，至少高 5°C 时立即保护。"), T("Save and apply", "保存并应用"), delegate
                 {
                     FanCurve result = chart.Curve;
                     settings.CustomTemperatures = result.Temperatures;
@@ -799,10 +851,43 @@ namespace MsiHardwareConsole
                 });
                 return;
             }
-            string subtitle = key == "Automatic"
-                ? T("Firmware reference; Automatic also considers power and system state.", "固件策略参考；自动模式还会综合功耗和系统状态动态调整。")
-                : T("This temperature-to-fan-duty curve is written to the hardware.", "这是该模式将写入硬件的温度—转速百分比。");
-            ShowFanCurveOverlay(ModeDisplayName(key), subtitle, GetCurveForMode(key), modeCards[key].Accent);
+            if (key == "Automatic")
+            {
+                var info = new Border
+                {
+                    Background = MakeTint(AccentBrush, 0.07),
+                    BorderBrush = MakeTint(AccentBrush, 0.24),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(18),
+                    Padding = new Thickness(24)
+                };
+                var content = new StackPanel();
+                content.Children.Add(new TextBlock
+                {
+                    Text = T("Dynamically controlled by MSI firmware", "由 MSI 固件动态控制"),
+                    FontSize = 20,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = TextBrush
+                });
+                content.Children.Add(new TextBlock
+                {
+                    Text = T(
+                        "Automatic mode does not expose a readable fixed temperature-to-duty curve. Firmware continuously considers temperature, load, power, and system state, so this view no longer shows guessed percentages.",
+                        "自动模式没有可读取的固定温度—转速曲线。固件会综合温度、负载、功耗和系统状态实时调整，因此这里不再显示猜测的百分比。"),
+                    FontSize = 13,
+                    Foreground = MutedBrush,
+                    TextWrapping = TextWrapping.Wrap,
+                    LineHeight = 23,
+                    Margin = new Thickness(0, 10, 0, 0)
+                });
+                info.Child = content;
+                ShowOverlay(T("Automatic", "自动"), T("Dynamic firmware policy", "固件动态策略"), info,
+                    T("Selecting Automatic returns complete fan control to MSI firmware.", "选择自动模式后，应用会把风扇控制权完整交还 MSI 固件。"), null, null);
+                return;
+            }
+            ShowFanCurveOverlay(ModeDisplayName(key),
+                T("This temperature-to-fan-duty curve is written to the hardware.", "这是该模式将写入硬件的温度—转速百分比。"),
+                GetCurveForMode(key), modeCards[key].Accent);
         }
 
         private void ShowCurveWindow(string title, string subtitle, FanCurve curve, bool editable, Brush accent)
@@ -1428,13 +1513,25 @@ namespace MsiHardwareConsole
 
         private void UpdateFixedControls()
         {
+            if (fixedSlider != null)
+            {
+                fixedSlider.IsEnabled = !fixedFanOff;
+                fixedSlider.Opacity = fixedFanOff ? 0.38 : 1.0;
+                fixedSlider.Cursor = fixedFanOff ? Cursors.Arrow : Cursors.Hand;
+            }
             if (fixedValue != null)
+            {
                 fixedValue.Text = fixedFanOff ? T("Off", "已关闭") : NormalizeRunningFanDuty((int)Math.Round(fixedSlider.Value)) + "%";
+                fixedValue.Foreground = fixedFanOff ? MutedBrush : PurpleBrush;
+            }
             if (fixedOffButton == null) return;
-            fixedOffButton.Background = fixedFanOff ? MakeTint(DangerBrush, 0.16) : MakeBrush("#F6F7FA");
-            fixedOffButton.Foreground = fixedFanOff ? DangerBrush : MutedBrush;
-            fixedOffButton.BorderBrush = fixedFanOff ? DangerBrush : CardBorderBrush;
-            fixedOffButton.Content = fixedFanOff ? T("✓ Off", "✓ 已关闭") : T("Off", "关闭");
+            fixedOffButton.Background = fixedFanOff ? PurpleBrush : MakeBrush("#F6F7FA");
+            fixedOffButton.Foreground = fixedFanOff ? Brushes.White : MutedBrush;
+            fixedOffButton.BorderBrush = fixedFanOff ? PurpleBrush : CardBorderBrush;
+            fixedOffButton.Content = fixedFanOff ? T("Turn on", "开启") : T("Turn off", "关闭");
+            fixedOffButton.ToolTip = fixedFanOff
+                ? T("Restore the previous fixed duty and restart the fan", "恢复上次设定的固定转速并重新启动风扇")
+                : T("Stop the fan; sustained high temperature still enables Full Blast protection", "立即关闭风扇；持续高温时仍会自动启用全速保护");
         }
 
         private static int NormalizeFanDuty(int duty)

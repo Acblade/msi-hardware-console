@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- Fixed mode now uses a true on/off toggle and disables its duty slider while the fan is off
+- Automatic mode no longer shows fabricated fan-duty percentages
+- Full Blast protection now requires sustained high temperature, while extreme heat still triggers it immediately
+- Updated English and Simplified Chinese UI copy and documentation
+
 ## 0.1.0
 
 - First public preview
