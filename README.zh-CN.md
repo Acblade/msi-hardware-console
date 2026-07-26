@@ -5,7 +5,7 @@
 一个非官方的轻量 Windows 硬件面板和 MSI 笔记本风扇控制工具。它无需安装 MSI Center，即可显示 CPU/GPU 占用率与温度、硬盘空间、风扇 RPM、风扇模式，以及可编辑的温度—转速曲线。
 
 > [!WARNING]
-> 风扇控制会通过 MSI ACPI WMI 接口写入固件，兼容性与具体机型密切相关。0.1.1 只会在已经验证的 MSI Cyborg 15 A13VE、WMI 2.8 上启用风扇写入；其他电脑默认进入仅监控模式。
+> 风扇控制会通过 MSI ACPI WMI 接口写入固件，兼容性与具体机型密切相关。0.1.2 只会在已经验证的 MSI Cyborg 15 A13VE、WMI 2.8 上启用风扇写入；其他电脑默认进入仅监控模式。
 
 ![中文界面](docs/images/dashboard-zh-CN.png)
 
@@ -27,6 +27,7 @@
 - 普通转速限定为关闭或 30–60%；持续高温时启用狂暴散热保护
 - 公开版默认英文，可即时切换简体中文
 - 浅色圆角界面、托盘后台运行和可选的最高权限开机自启
+- 标题栏最小化只进入任务栏；关闭到托盘后，下次打开会保留原来的最大化状态
 - 不依赖 MSI Center、MSI Center SDK 或内核驱动
 
 ## 兼容范围
@@ -45,7 +46,7 @@ MSI 不同代际固件的协议并不统一。Linux 内核文档也明确提醒�
 
 ## 下载与使用
 
-1. 从 GitHub Releases 下载 `MSI-Hardware-Console-v0.1.1-win-x64.zip`。
+1. 从 GitHub Releases 下载 `MSI-Hardware-Console-v0.1.2-win-x64.zip`。
 2. 完整解压压缩包。
 3. 运行 `MSIHardwareConsole.exe`，同意 Windows 管理员权限提示。
 4. 公开版默认使用英文，点击右上角 **中文** 即可切换。

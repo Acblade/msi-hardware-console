@@ -9,8 +9,8 @@ using System.Windows.Threading;
 [assembly: AssemblyProduct("MSI Hardware Console")]
 [assembly: AssemblyDescription("Unofficial MSI laptop hardware monitor and fan controller")]
 [assembly: AssemblyCompany("Acblade")]
-[assembly: AssemblyVersion("0.1.1.0")]
-[assembly: AssemblyFileVersion("0.1.1.0")]
+[assembly: AssemblyVersion("0.1.2.0")]
+[assembly: AssemblyFileVersion("0.1.2.0")]
 
 namespace MsiHardwareConsole
 {
