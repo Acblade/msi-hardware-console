@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- The title-bar minimize button now keeps the app on the Windows taskbar
+- Closing a maximized window to the notification area preserves the maximized state when reopened
+
 ## 0.1.1
 
 - Fixed mode now uses a true on/off toggle and disables its duty slider while the fan is off

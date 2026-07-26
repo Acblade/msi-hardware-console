@@ -88,6 +88,8 @@ namespace MsiHardwareConsole
         private bool exitRequested;
         private bool initializingSettings = true;
         private bool refreshInProgress;
+        private bool adaptiveSizeApplied;
+        private WindowState lastVisibleWindowState = WindowState.Normal;
         private int refreshCycle;
         private int lastCpuTemperature;
         private int lastGpuTemperature;
@@ -119,7 +121,12 @@ namespace MsiHardwareConsole
             SetWindowIcon();
 
             Content = BuildContent();
-            Loaded += delegate { ApplyAdaptiveWindowSize(); };
+            Loaded += delegate
+            {
+                if (adaptiveSizeApplied) return;
+                ApplyAdaptiveWindowSize();
+                adaptiveSizeApplied = true;
+            };
             Closing += OnClosing;
             PreviewKeyDown += delegate(object sender, KeyEventArgs e)
             {
@@ -129,7 +136,10 @@ namespace MsiHardwareConsole
                     e.Handled = true;
                 }
             };
-            StateChanged += delegate { if (WindowState == WindowState.Minimized) HideToTray(); };
+            StateChanged += delegate
+            {
+                if (WindowState != WindowState.Minimized) lastVisibleWindowState = WindowState;
+            };
             refreshTimer.Interval = TimeSpan.FromSeconds(1);
             refreshTimer.Tick += delegate { RefreshMetricsAsync(); };
             CreateTrayIcon();
@@ -1255,8 +1265,7 @@ namespace MsiHardwareConsole
         public void ShowFromTray()
         {
             Show();
-            WindowState = WindowState.Normal;
-            ApplyAdaptiveWindowSize();
+            if (WindowState == WindowState.Minimized) WindowState = lastVisibleWindowState;
             Activate();
             Topmost = true;
             Topmost = false;
@@ -1317,6 +1326,7 @@ namespace MsiHardwareConsole
 
         private void HideToTray()
         {
+            if (WindowState != WindowState.Minimized) lastVisibleWindowState = WindowState;
             Hide();
         }
 
