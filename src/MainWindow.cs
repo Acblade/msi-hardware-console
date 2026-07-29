@@ -206,6 +206,7 @@ namespace MsiHardwareConsole
             root.Children.Add(BuildStorageGrid());
             fanHeaderElement = BuildFanHeader();
             root.Children.Add(fanHeaderElement);
+            root.Children.Add(BuildProtectionSettingsCard());
             root.Children.Add(BuildBlastCard());
             root.Children.Add(BuildModeGrid());
             root.Children.Add(SectionHeader(T("Startup and notification area", "启动与托盘"), null));
@@ -483,66 +484,95 @@ namespace MsiHardwareConsole
         private FrameworkElement BuildFanHeader()
         {
             var grid = new Grid { Margin = new Thickness(3, 20, 3, 8) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.Children.Add(new TextBlock { Text = T("Fan control", "风扇控制"), FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = TextBrush, VerticalAlignment = VerticalAlignment.Center });
-            Grid protectionSettings = BuildProtectionTemperatureSettings();
-            Grid.SetColumn(protectionSettings, 1);
-            grid.Children.Add(protectionSettings);
-            fanStatus = new TextBlock { Text = T("Connecting to fan…", "正在连接风扇…"), FontSize = 12, Foreground = MutedBrush, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 0, 0) };
-            Grid.SetRow(fanStatus, 1);
-            Grid.SetColumnSpan(fanStatus, 2);
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.Children.Add(new TextBlock { Text = T("Fan control", "风扇控制"), FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = TextBrush });
+            fanStatus = new TextBlock { Text = T("Connecting to fan…", "正在连接风扇…"), FontSize = 12, Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(fanStatus, 1);
             grid.Children.Add(fanStatus);
             return grid;
         }
 
-        private Grid BuildProtectionTemperatureSettings()
+        private UIElement BuildProtectionSettingsCard()
         {
-            var host = new Grid { Margin = new Thickness(18, 0, 18, 0), VerticalAlignment = VerticalAlignment.Center };
-            host.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            host.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            host.Children.Add(new TextBlock
+            var card = Card(new Thickness(18), 18);
+            card.Margin = new Thickness(5, 3, 5, 8);
+            card.Background = new LinearGradientBrush(Color.FromRgb(255, 255, 255), Color.FromRgb(247, 250, 255), 0);
+            var root = new StackPanel();
+            var heading = new Grid();
+            heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            heading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var icon = new Border
             {
-                Text = T("Thermal guard", "高温保护"),
+                Width = 42,
+                Height = 42,
+                CornerRadius = new CornerRadius(14),
+                Background = MakeBrush("#FFF0E8"),
+                Margin = new Thickness(0, 0, 13, 0),
+                Child = new TextBlock { Text = "♨", FontSize = 21, Foreground = WarningBrush, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+            };
+            heading.Children.Add(icon);
+            var headingText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            headingText.Children.Add(new TextBlock { Text = T("Thermal guard", "高温保护"), FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = TextBrush });
+            headingText.Children.Add(new TextBlock
+            {
+                Text = T("Independent of fan curves; only controls when emergency 100% cooling starts and stops", "独立于风扇曲线，只决定何时进入或退出 100% 紧急散热"),
                 FontSize = 11,
-                FontWeight = FontWeights.SemiBold,
                 Foreground = MutedBrush,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 9, 0)
+                Margin = new Thickness(0, 3, 0, 0)
             });
+            Grid.SetColumn(headingText, 1);
+            heading.Children.Add(headingText);
+            root.Children.Add(heading);
 
-            var controls = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
+            var controls = new UniformGrid { Columns = 3, Margin = new Thickness(0, 14, 0, 0) };
             controls.Children.Add(BuildProtectionTemperatureControl(
-                T("Sustained", "持续开启"), 88, 94, settings.SustainedFullBlastTemperature,
+                T("Sustained heat", "持续高温"), T("Waits 20 seconds", "达到后等待 20 秒"), T("Enter 100% cooling", "进入 100% 散热"), T("Adjustable: 88–94°C", "可调范围 88–94°C"),
+                88, 94, settings.SustainedFullBlastTemperature, WarningBrush,
                 out sustainedProtectionSlider, out sustainedProtectionValue,
                 T("Enables 100% after this temperature is sustained for 20 seconds", "达到该温度并持续 20 秒后开启 100%")));
             controls.Children.Add(BuildProtectionTemperatureControl(
-                T("Immediate", "立即开启"), 95, 100, settings.EmergencyFullBlastTemperature,
+                T("Emergency heat", "紧急高温"), T("No waiting", "达到后无需等待"), T("Enter 100% immediately", "立即进入 100% 散热"), T("Adjustable: 95–100°C", "可调范围 95–100°C"),
+                95, 100, settings.EmergencyFullBlastTemperature, DangerBrush,
                 out emergencyProtectionSlider, out emergencyProtectionValue,
                 T("Enables 100% immediately at this temperature", "达到该温度后立即开启 100%")));
             controls.Children.Add(BuildProtectionTemperatureControl(
-                T("Release", "退出保护"), 75, 89, settings.FullBlastReleaseTemperature,
+                T("Restore curve", "恢复曲线"), T("Waits 20 seconds after cooling", "降温后等待 20 秒"), T("Leave 100% and restore the active mode", "退出 100% 并恢复当前模式"), T("Adjustable: 75–89°C", "可调范围 75–89°C"),
+                75, 89, settings.FullBlastReleaseTemperature, GoodBrush,
                 out releaseProtectionSlider, out releaseProtectionValue,
                 T("Restores the selected curve after staying below this temperature for 20 seconds", "降到该温度并持续 20 秒后恢复所选曲线")));
-            Grid.SetColumn(controls, 1);
-            host.Children.Add(controls);
+            root.Children.Add(controls);
+            var safetyNote = new Border
+            {
+                Background = MakeBrush("#EEF4FC"),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(11, 7, 11, 7),
+                Margin = new Thickness(4, 10, 4, 0),
+                Child = new TextBlock
+                {
+                    Text = T(
+                        "Safety rule: emergency must be at least 3°C above sustained, and restore at least 3°C below. Conflicting values are corrected automatically.",
+                        "安全约束：紧急温度至少比持续温度高 3°C；恢复温度至少低 3°C。冲突的设置会自动修正。"),
+                    FontSize = 10,
+                    Foreground = AccentBrush
+                }
+            };
+            root.Children.Add(safetyNote);
             UpdateProtectionTemperatureLabels();
-            return host;
+            card.Child = root;
+            return card;
         }
 
-        private Border BuildProtectionTemperatureControl(string label, int minimum, int maximum, int value,
-            out Slider slider, out TextBlock valueText, string toolTip)
+        private Border BuildProtectionTemperatureControl(string title, string timing, string action, string range,
+            int minimum, int maximum, int value, Brush accent, out Slider slider, out TextBlock valueText, string toolTip)
         {
             var card = new Border
             {
-                Width = 132,
-                Margin = new Thickness(3, 0, 3, 0),
-                Padding = new Thickness(9, 5, 9, 5),
-                CornerRadius = new CornerRadius(11),
-                Background = MakeBrush("#F3F6FA"),
-                BorderBrush = CardBorderBrush,
+                Margin = new Thickness(4, 0, 4, 0),
+                Padding = new Thickness(14, 12, 14, 11),
+                CornerRadius = new CornerRadius(15),
+                Background = MakeTint(accent, 0.055),
+                BorderBrush = MakeTint(accent, 0.22),
                 BorderThickness = new Thickness(1),
                 ToolTip = toolTip
             };
@@ -550,11 +580,15 @@ namespace MsiHardwareConsole
             var heading = new Grid();
             heading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            heading.Children.Add(new TextBlock { Text = label, FontSize = 10, Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center });
-            valueText = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = AccentBrush, VerticalAlignment = VerticalAlignment.Center };
+            var labels = new StackPanel();
+            labels.Children.Add(new TextBlock { Text = title, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = TextBrush });
+            labels.Children.Add(new TextBlock { Text = timing, FontSize = 10, Foreground = MutedBrush, Margin = new Thickness(0, 2, 0, 0) });
+            heading.Children.Add(labels);
+            valueText = new TextBlock { FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = accent, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(valueText, 1);
             heading.Children.Add(valueText);
             content.Children.Add(heading);
+            content.Children.Add(new TextBlock { Text = action, FontSize = 11, Foreground = accent, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 0) });
             slider = new Slider
             {
                 Minimum = minimum,
@@ -564,13 +598,14 @@ namespace MsiHardwareConsole
                 SmallChange = 1,
                 LargeChange = 2,
                 IsSnapToTickEnabled = true,
-                Margin = new Thickness(0, 2, 0, 0),
+                Margin = new Thickness(0, 9, 0, 0),
                 Cursor = Cursors.Hand
             };
             slider.ValueChanged += delegate { UpdateProtectionTemperatureLabels(); };
             slider.PreviewMouseLeftButtonUp += delegate { CommitProtectionTemperatureSettings(); };
             slider.KeyUp += delegate { CommitProtectionTemperatureSettings(); };
             content.Children.Add(slider);
+            content.Children.Add(new TextBlock { Text = range, FontSize = 9, Foreground = MutedBrush, Margin = new Thickness(0, 4, 0, 0) });
             card.Child = content;
             return card;
         }
@@ -608,7 +643,7 @@ namespace MsiHardwareConsole
             grid.ColumnDefinitions.Add(new ColumnDefinition());
             for (int i = 0; i < 3; i++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            AddModeCard(grid, "Automatic", T("Automatic", "自动"), T("Balanced profile · firmware-controlled", "均衡性能 · 固件自动调速"), T("Recommended for daily use; firmware combines temperature and load.", "日常首选，由固件综合温度与负载调整。"), AccentBrush, 0, 0, null);
+            AddModeCard(grid, "Automatic", T("Automatic", "自动"), T("Controlled by MSI firmware", "由 MSI 固件自行调速"), T("Continuously combines temperature, load, and power; best for everyday use.", "系统综合温度、负载与功耗实时调整，适合日常使用。"), AccentBrush, 0, 0, null);
 
             var fixedExtra = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
             var fixedLine = new Grid();
@@ -666,13 +701,13 @@ namespace MsiHardwareConsole
             fixedLine.Children.Add(fixedOffButton);
             fixedExtra.Children.Add(fixedLine);
             UpdateFixedControls();
-            AddModeCard(grid, "Fixed", T("Fixed", "固定"), T("Hold 30–60% · turn off or on", "持续保持 30–60% · 可关闭或开启"), T("The slider locks while off; the thermal guard still protects the hardware.", "关闭后滑条会锁定；高温时仍会按保护设置自动散热。"), PurpleBrush, 0, 2, fixedExtra);
+            AddModeCard(grid, "Fixed", T("Fixed", "固定"), T("Keep one constant fan duty", "始终保持同一转速"), T("Keeps the slider value while on; turns the ordinary fan off while preserving the thermal guard.", "开启时维持滑条设定；关闭时停止普通风扇，高温保护仍然有效。"), PurpleBrush, 0, 2, fixedExtra);
 
             var customExtra = new TextBlock { Text = T("Right-click to edit   ●━━●━━●", "右键编辑曲线   ●━━●━━●"), Foreground = AccentBrush, FontSize = 11, Margin = new Thickness(0, 10, 0, 0), FontWeight = FontWeights.SemiBold };
-            AddModeCard(grid, "Custom", T("Custom", "自定义"), T("Ordinary curve capped at 60%", "普通曲线最高 60%"), T("All seven points allow 0% or 30–60%.", "七个节点均可设为 0% 或 30–60%。"), AccentBrush, 1, 0, customExtra);
-            AddModeCard(grid, "Silent", T("Silent", "静音"), T("Gentle ramp · separate thermal guard", "温和升速 · 独立高温保护"), T("Quieter at light load; the ordinary curve never directly requests 100%.", "轻负载更安静，普通曲线不会直接触发全速。"), TealBrush, 0, 1, null);
-            AddModeCard(grid, "Balanced", T("Balanced", "均衡"), T("Everyday curve · high-temperature protection", "日用曲线 · 高温保护"), T("A daily balance of performance, temperature, and noise.", "性能、温度和噪音的日常折中。"), GoodBrush, 1, 1, null);
-            AddModeCard(grid, "Boost", T("Boost", "强冷"), T("Reaches 60% earlier · separate thermal guard", "更早达到 60% · 独立高温保护"), T("For games and sustained workloads; the ordinary curve remains capped at 60%.", "适合游戏和持续负载，普通曲线最高 60%。"), WarningBrush, 1, 2, null);
+            AddModeCard(grid, "Custom", T("Custom", "自定义"), T("Follow your temperature curve", "按你设置的温度曲线调速"), T("Right-click to edit; every point supports 0% or 30–60%.", "右键打开曲线编辑器；每个节点可设置为 0% 或 30–60%。"), AccentBrush, 1, 0, customExtra);
+            AddModeCard(grid, "Silent", T("Silent", "静音"), T("Quieter under light load", "低负载时更安静"), T("Ramps gently with temperature; suited to office work, browsing, and light loads.", "风扇随温度缓慢提升，适合办公、网页和轻负载。"), TealBrush, 0, 1, null);
+            AddModeCard(grid, "Balanced", T("Balanced", "均衡"), T("Everyday balance of heat and noise", "温度与噪音的日常平衡"), T("Ramps more actively than Silent; suited to most games and everyday use.", "升速比静音更积极，适合多数游戏和常规使用。"), GoodBrush, 1, 1, null);
+            AddModeCard(grid, "Boost", T("Boost", "强冷"), T("Reach 60% earlier", "更早提升到 60%"), T("Prioritizes lower temperatures for gaming, rendering, and sustained heavy loads.", "优先压低温度，适合游戏、渲染与长时间高负载。"), WarningBrush, 1, 2, null);
             return grid;
         }
 
@@ -744,7 +779,7 @@ namespace MsiHardwareConsole
             grid.Children.Add(icon);
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             text.Children.Add(new TextBlock { Text = T("Full Blast", "狂暴散热"), FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = MakeBrush("#A33131") });
-            text.Children.Add(new TextBlock { Text = T("Immediate maximum speed · strongest cooling · loudest noise · click again to stop", "立即全速运转 · 散热最强 · 噪音最大 · 再次点击关闭"), FontSize = 12, Foreground = MakeBrush("#9B5A5A"), Margin = new Thickness(0, 5, 0, 0) });
+            text.Children.Add(new TextBlock { Text = T("Runs at 100% immediately · strongest and loudest · click again to restore the previous mode", "立即以 100% 运行 · 最强散热也最响 · 再次点击恢复此前模式"), FontSize = 12, Foreground = MakeBrush("#9B5A5A"), Margin = new Thickness(0, 5, 0, 0) });
             Grid.SetColumn(text, 1);
             grid.Children.Add(text);
             blastCard.Child = grid;
