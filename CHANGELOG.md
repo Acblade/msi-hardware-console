@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+- Moved thermal-guard controls into a dedicated panel below Fan control
+- Redesigned the three temperature controls with clearer timing, actions, ranges, and visual hierarchy
+- Rewrote all fan-mode descriptions around their actual behavior and recommended use
+
 ## 0.1.3
 
 - Ordinary fan curves are capped at 60%; 100% is reserved for manual Full Blast or the independent thermal guard
