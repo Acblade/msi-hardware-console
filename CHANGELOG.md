@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3
+
+- Ordinary fan curves are capped at 60%; 100% is reserved for manual Full Blast or the independent thermal guard
+- Added adjustable sustained, immediate, and release temperatures beside the Fan control heading
+- Added safe ranges and automatic 3°C separation between thermal-guard thresholds
+- Removed thermal-guard details from fan-curve overlays
+
 ## 0.1.2
 
 - The title-bar minimize button now keeps the app on the Windows taskbar

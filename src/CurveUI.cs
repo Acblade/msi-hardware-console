@@ -24,14 +24,13 @@ namespace MsiHardwareConsole
             this.accent = accent;
             if (editable)
             {
-                for (int i = 0; i < 6; i++)
+                for (int i = 0; i < 7; i++)
                 {
                     int speed = this.curve.Speeds[i];
                     this.curve.Speeds[i] = speed <= 0 ? 0 : Math.Max(30, Math.Min(60, speed));
                     if (i > 0 && this.curve.Speeds[i] < this.curve.Speeds[i - 1])
                         this.curve.Speeds[i] = this.curve.Speeds[i - 1];
                 }
-                this.curve.Speeds[6] = 100;
             }
             MinHeight = 330;
             Cursor = editable ? Cursors.Hand : Cursors.Arrow;
@@ -128,7 +127,7 @@ namespace MsiHardwareConsole
             // reliable running range across laptops, so snap to 0 or 30%.
             if (speed > 0 && speed < 30) speed = speed < 15 ? 0 : 30;
             int i = draggedPoint;
-            if (i < 6 && speed > 60) speed = 60;
+            if (speed > 60) speed = 60;
             if (i > 0)
             {
                 int minimum = curve.Temperatures[i - 1] + 3;
@@ -136,8 +135,8 @@ namespace MsiHardwareConsole
                 curve.Temperatures[i] = Math.Max(minimum, Math.Min(maximum, temperature));
             }
             int minimumSpeed = i == 0 ? 0 : curve.Speeds[i - 1];
-            int maximumSpeed = i == 6 ? 100 : Math.Min(60, curve.Speeds[i + 1]);
-            curve.Speeds[i] = i == 6 ? 100 : Math.Max(minimumSpeed, Math.Min(maximumSpeed, speed));
+            int maximumSpeed = i == 6 ? 60 : Math.Min(60, curve.Speeds[i + 1]);
+            curve.Speeds[i] = Math.Max(minimumSpeed, Math.Min(maximumSpeed, speed));
             InvalidateVisual();
             if (CurveChanged != null) CurveChanged(this, EventArgs.Empty);
         }
@@ -301,7 +300,7 @@ namespace MsiHardwareConsole
             footer.Children.Add(new TextBlock
             {
                 Text = editable
-                    ? Localization.T("Available duty: 0%, 30–60%, and 100%; the last point needs 10 sustained seconds, while extreme heat protects immediately.", "可用转速：0%、30–60%、100%；末节点持续 10 秒才全速，极高温立即保护。")
+                    ? Localization.T("Available duty for all seven points: 0% or 30–60%.", "七个节点的可用转速：0% 或 30–60%。")
                     : Localization.T("Temperature is horizontal; fan duty is vertical.", "横轴是温度，纵轴是风扇转速百分比。"),
                 Foreground = new SolidColorBrush(Color.FromRgb(104, 117, 138)),
                 FontSize = 11,
