@@ -20,6 +20,9 @@ namespace MsiHardwareConsole
         public int[] CustomTemperatures { get; set; }
         public int[] CustomSpeeds { get; set; }
         public string Language { get; set; }
+        public int SustainedFullBlastTemperature { get; set; }
+        public int EmergencyFullBlastTemperature { get; set; }
+        public int FullBlastReleaseTemperature { get; set; }
 
         public AppSettings()
         {
@@ -29,7 +32,10 @@ namespace MsiHardwareConsole
             SelectedFanMode = "Automatic";
             Language = "en-US";
             CustomTemperatures = new[] { 40, 50, 57, 64, 71, 78, 85 };
-            CustomSpeeds = new[] { 25, 35, 43, 52, 62, 76, 100 };
+            CustomSpeeds = new[] { 30, 34, 40, 46, 52, 56, 60 };
+            SustainedFullBlastTemperature = 92;
+            EmergencyFullBlastTemperature = 97;
+            FullBlastReleaseTemperature = 87;
         }
     }
 

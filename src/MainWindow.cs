@@ -71,6 +71,12 @@ namespace MsiHardwareConsole
         private Slider fixedSlider;
         private TextBlock fixedValue;
         private Button fixedOffButton;
+        private Slider sustainedProtectionSlider;
+        private Slider emergencyProtectionSlider;
+        private Slider releaseProtectionSlider;
+        private TextBlock sustainedProtectionValue;
+        private TextBlock emergencyProtectionValue;
+        private TextBlock releaseProtectionValue;
         private CheckBox autoStartCheckBox;
         private TextBlock autoStartDetail;
         private Border blastCard;
@@ -84,6 +90,7 @@ namespace MsiHardwareConsole
         private bool modeUsesFullBlast;
         private DateTime fullBlastHighSinceUtc = DateTime.MinValue;
         private DateTime fullBlastCoolSinceUtc = DateTime.MinValue;
+        private const int FullBlastConfirmationSeconds = 20;
         private bool fixedFanOff;
         private bool exitRequested;
         private bool initializingSettings = true;
@@ -476,13 +483,122 @@ namespace MsiHardwareConsole
         private FrameworkElement BuildFanHeader()
         {
             var grid = new Grid { Margin = new Thickness(3, 20, 3, 8) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.Children.Add(new TextBlock { Text = T("Fan control", "风扇控制"), FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = TextBrush });
-            fanStatus = new TextBlock { Text = T("Connecting to fan…", "正在连接风扇…"), FontSize = 12, Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(fanStatus, 1);
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.Children.Add(new TextBlock { Text = T("Fan control", "风扇控制"), FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = TextBrush, VerticalAlignment = VerticalAlignment.Center });
+            Grid protectionSettings = BuildProtectionTemperatureSettings();
+            Grid.SetColumn(protectionSettings, 1);
+            grid.Children.Add(protectionSettings);
+            fanStatus = new TextBlock { Text = T("Connecting to fan…", "正在连接风扇…"), FontSize = 12, Foreground = MutedBrush, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 0, 0) };
+            Grid.SetRow(fanStatus, 1);
+            Grid.SetColumnSpan(fanStatus, 2);
             grid.Children.Add(fanStatus);
             return grid;
+        }
+
+        private Grid BuildProtectionTemperatureSettings()
+        {
+            var host = new Grid { Margin = new Thickness(18, 0, 18, 0), VerticalAlignment = VerticalAlignment.Center };
+            host.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            host.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            host.Children.Add(new TextBlock
+            {
+                Text = T("Thermal guard", "高温保护"),
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = MutedBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 9, 0)
+            });
+
+            var controls = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
+            controls.Children.Add(BuildProtectionTemperatureControl(
+                T("Sustained", "持续开启"), 88, 94, settings.SustainedFullBlastTemperature,
+                out sustainedProtectionSlider, out sustainedProtectionValue,
+                T("Enables 100% after this temperature is sustained for 20 seconds", "达到该温度并持续 20 秒后开启 100%")));
+            controls.Children.Add(BuildProtectionTemperatureControl(
+                T("Immediate", "立即开启"), 95, 100, settings.EmergencyFullBlastTemperature,
+                out emergencyProtectionSlider, out emergencyProtectionValue,
+                T("Enables 100% immediately at this temperature", "达到该温度后立即开启 100%")));
+            controls.Children.Add(BuildProtectionTemperatureControl(
+                T("Release", "退出保护"), 75, 89, settings.FullBlastReleaseTemperature,
+                out releaseProtectionSlider, out releaseProtectionValue,
+                T("Restores the selected curve after staying below this temperature for 20 seconds", "降到该温度并持续 20 秒后恢复所选曲线")));
+            Grid.SetColumn(controls, 1);
+            host.Children.Add(controls);
+            UpdateProtectionTemperatureLabels();
+            return host;
+        }
+
+        private Border BuildProtectionTemperatureControl(string label, int minimum, int maximum, int value,
+            out Slider slider, out TextBlock valueText, string toolTip)
+        {
+            var card = new Border
+            {
+                Width = 132,
+                Margin = new Thickness(3, 0, 3, 0),
+                Padding = new Thickness(9, 5, 9, 5),
+                CornerRadius = new CornerRadius(11),
+                Background = MakeBrush("#F3F6FA"),
+                BorderBrush = CardBorderBrush,
+                BorderThickness = new Thickness(1),
+                ToolTip = toolTip
+            };
+            var content = new StackPanel();
+            var heading = new Grid();
+            heading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            heading.Children.Add(new TextBlock { Text = label, FontSize = 10, Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center });
+            valueText = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = AccentBrush, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(valueText, 1);
+            heading.Children.Add(valueText);
+            content.Children.Add(heading);
+            slider = new Slider
+            {
+                Minimum = minimum,
+                Maximum = maximum,
+                Value = value,
+                TickFrequency = 1,
+                SmallChange = 1,
+                LargeChange = 2,
+                IsSnapToTickEnabled = true,
+                Margin = new Thickness(0, 2, 0, 0),
+                Cursor = Cursors.Hand
+            };
+            slider.ValueChanged += delegate { UpdateProtectionTemperatureLabels(); };
+            slider.PreviewMouseLeftButtonUp += delegate { CommitProtectionTemperatureSettings(); };
+            slider.KeyUp += delegate { CommitProtectionTemperatureSettings(); };
+            content.Children.Add(slider);
+            card.Child = content;
+            return card;
+        }
+
+        private void UpdateProtectionTemperatureLabels()
+        {
+            if (sustainedProtectionValue != null && sustainedProtectionSlider != null)
+                sustainedProtectionValue.Text = Math.Round(sustainedProtectionSlider.Value) + "°C";
+            if (emergencyProtectionValue != null && emergencyProtectionSlider != null)
+                emergencyProtectionValue.Text = Math.Round(emergencyProtectionSlider.Value) + "°C";
+            if (releaseProtectionValue != null && releaseProtectionSlider != null)
+                releaseProtectionValue.Text = Math.Round(releaseProtectionSlider.Value) + "°C";
+        }
+
+        private void CommitProtectionTemperatureSettings()
+        {
+            if (initializingSettings || sustainedProtectionSlider == null || emergencyProtectionSlider == null || releaseProtectionSlider == null) return;
+            settings.SustainedFullBlastTemperature = (int)Math.Round(sustainedProtectionSlider.Value);
+            settings.EmergencyFullBlastTemperature = (int)Math.Round(emergencyProtectionSlider.Value);
+            settings.FullBlastReleaseTemperature = (int)Math.Round(releaseProtectionSlider.Value);
+            NormalizeProtectionTemperatures();
+            sustainedProtectionSlider.Value = settings.SustainedFullBlastTemperature;
+            emergencyProtectionSlider.Value = settings.EmergencyFullBlastTemperature;
+            releaseProtectionSlider.Value = settings.FullBlastReleaseTemperature;
+            UpdateProtectionTemperatureLabels();
+            SettingsStore.Save(settings);
+            ResetFullBlastGuard();
+            if (fanControlVerified && connected && !applying) RefreshFanStatus();
         }
 
         private UIElement BuildModeGrid()
@@ -550,13 +666,13 @@ namespace MsiHardwareConsole
             fixedLine.Children.Add(fixedOffButton);
             fixedExtra.Children.Add(fixedLine);
             UpdateFixedControls();
-            AddModeCard(grid, "Fixed", T("Fixed", "固定"), T("Hold 30–60% · turn off or on", "持续保持 30–60% · 可关闭或开启"), T("The slider locks while off; turning it back on restores the previous duty.", "关闭后滑条会锁定；重新开启将恢复上次设定的转速。"), PurpleBrush, 0, 2, fixedExtra);
+            AddModeCard(grid, "Fixed", T("Fixed", "固定"), T("Hold 30–60% · turn off or on", "持续保持 30–60% · 可关闭或开启"), T("The slider locks while off; the thermal guard still protects the hardware.", "关闭后滑条会锁定；高温时仍会按保护设置自动散热。"), PurpleBrush, 0, 2, fixedExtra);
 
             var customExtra = new TextBlock { Text = T("Right-click to edit   ●━━●━━●", "右键编辑曲线   ●━━●━━●"), Foreground = AccentBrush, FontSize = 11, Margin = new Thickness(0, 10, 0, 0), FontWeight = FontWeights.SemiBold };
-            AddModeCard(grid, "Custom", T("Custom", "自定义"), T("Verified curve · high-temperature protection", "可验证曲线 · 高温保护"), T("First six points: 0% or 30–60% · sustained high temperature enables Full Blast.", "前六点为 0% 或 30–60% · 高温持续 10 秒才全速。"), AccentBrush, 1, 0, customExtra);
-            AddModeCard(grid, "Silent", T("Silent", "静音"), T("Gentle ramp · high-temperature protection", "温和升速 · 高温保护"), T("Quieter at light load; Full Blast at the safety point.", "轻负载更安静，达到高温点后全速。"), TealBrush, 0, 1, null);
+            AddModeCard(grid, "Custom", T("Custom", "自定义"), T("Ordinary curve capped at 60%", "普通曲线最高 60%"), T("All seven points allow 0% or 30–60%.", "七个节点均可设为 0% 或 30–60%。"), AccentBrush, 1, 0, customExtra);
+            AddModeCard(grid, "Silent", T("Silent", "静音"), T("Gentle ramp · separate thermal guard", "温和升速 · 独立高温保护"), T("Quieter at light load; the ordinary curve never directly requests 100%.", "轻负载更安静，普通曲线不会直接触发全速。"), TealBrush, 0, 1, null);
             AddModeCard(grid, "Balanced", T("Balanced", "均衡"), T("Everyday curve · high-temperature protection", "日用曲线 · 高温保护"), T("A daily balance of performance, temperature, and noise.", "性能、温度和噪音的日常折中。"), GoodBrush, 1, 1, null);
-            AddModeCard(grid, "Boost", T("Boost", "强冷"), T("Reaches 60% earlier · high-temperature Full Blast", "更早达到 60% · 高温全速"), T("For games, rendering, and sustained workloads.", "适合游戏、渲染和持续高负载。"), WarningBrush, 1, 2, null);
+            AddModeCard(grid, "Boost", T("Boost", "强冷"), T("Reaches 60% earlier · separate thermal guard", "更早达到 60% · 独立高温保护"), T("For games and sustained workloads; the ordinary curve remains capped at 60%.", "适合游戏和持续负载，普通曲线最高 60%。"), WarningBrush, 1, 2, null);
             return grid;
         }
 
@@ -774,24 +890,22 @@ namespace MsiHardwareConsole
 
         private bool ShouldUseFullBlast(string key, FanCurve curve, HardwareSnapshot snapshot, bool currentlyActive)
         {
-            if (key == "Automatic" || curve == null || curve.Speeds[6] != 100)
+            if (key == "Automatic" || curve == null)
             {
                 ResetFullBlastGuard();
                 return false;
             }
 
             int temperature = Math.Max(snapshot.CpuTemperature, snapshot.GpuTemperature);
-            int sustainedThreshold = curve.Temperatures[6];
-            int emergencyThreshold = Math.Max(90, sustainedThreshold + 5);
             DateTime now = DateTime.UtcNow;
 
             if (currentlyActive)
             {
                 fullBlastHighSinceUtc = DateTime.MinValue;
-                if (temperature < sustainedThreshold - 3)
+                if (temperature <= settings.FullBlastReleaseTemperature)
                 {
                     if (fullBlastCoolSinceUtc == DateTime.MinValue) fullBlastCoolSinceUtc = now;
-                    if ((now - fullBlastCoolSinceUtc).TotalSeconds >= 10)
+                    if ((now - fullBlastCoolSinceUtc).TotalSeconds >= FullBlastConfirmationSeconds)
                     {
                         ResetFullBlastGuard();
                         return false;
@@ -802,16 +916,16 @@ namespace MsiHardwareConsole
             }
 
             fullBlastCoolSinceUtc = DateTime.MinValue;
-            if (temperature >= emergencyThreshold)
+            if (temperature >= settings.EmergencyFullBlastTemperature)
             {
                 fullBlastHighSinceUtc = DateTime.MinValue;
                 return true;
             }
 
-            if (temperature >= sustainedThreshold)
+            if (temperature >= settings.SustainedFullBlastTemperature)
             {
                 if (fullBlastHighSinceUtc == DateTime.MinValue) fullBlastHighSinceUtc = now;
-                if ((now - fullBlastHighSinceUtc).TotalSeconds >= 10)
+                if ((now - fullBlastHighSinceUtc).TotalSeconds >= FullBlastConfirmationSeconds)
                 {
                     fullBlastHighSinceUtc = DateTime.MinValue;
                     return true;
@@ -832,12 +946,12 @@ namespace MsiHardwareConsole
             int[] temps = { 40, 50, 57, 64, 71, 78, 85 };
             switch (key)
             {
-                case "Silent": return new FanCurve(temps, new[] { 30, 32, 35, 42, 50, 60, 100 });
-                case "Balanced": return new FanCurve(temps, new[] { 34, 38, 44, 52, 60, 60, 100 });
-                case "Boost": return new FanCurve(temps, new[] { 42, 50, 60, 60, 60, 60, 100 });
+                case "Silent": return new FanCurve(temps, new[] { 30, 32, 35, 42, 50, 56, 60 });
+                case "Balanced": return new FanCurve(temps, new[] { 34, 38, 44, 50, 54, 58, 60 });
+                case "Boost": return new FanCurve(temps, new[] { 42, 48, 54, 58, 60, 60, 60 });
                 case "Fixed":
                     int fixedSpeed = fixedSlider == null ? settings.FixedFanSpeed : FixedFanDutyFromSlider();
-                    return new FanCurve(temps, new[] { fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, 100 });
+                    return new FanCurve(temps, new[] { fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, fixedSpeed, Math.Max(fixedSpeed, 60) });
                 case "Custom": return new FanCurve(settings.CustomTemperatures, settings.CustomSpeeds);
                 default: return null;
             }
@@ -849,7 +963,7 @@ namespace MsiHardwareConsole
             {
                 var chart = new FanCurveChart(GetCurveForMode("Custom"), true, AccentBrush) { Height = 350 };
                 ShowOverlay(T("Custom", "自定义"), T("Drag points, then save to write the curve to MSI WMI2.", "拖动节点后保存，曲线会立即写入 MSI WMI2。"), chart,
-                    T("The first six points allow 0% or 30–60%. The last point needs 10 sustained seconds; at least 5°C higher enables immediate protection.", "前六个温度点可用 0% 或 30–60%；末节点持续 10 秒才全速，至少高 5°C 时立即保护。"), T("Save and apply", "保存并应用"), delegate
+                    T("All seven points allow 0% or 30–60%.", "七个节点均可用 0% 或 30–60%。"), T("Save and apply", "保存并应用"), delegate
                 {
                     FanCurve result = chart.Curve;
                     settings.CustomTemperatures = result.Temperatures;
@@ -1505,13 +1619,27 @@ namespace MsiHardwareConsole
             int requestedFixedSpeed = fixedOff ? settings.FixedRunningFanSpeed : settings.FixedFanSpeed;
             settings.FixedRunningFanSpeed = NormalizeRunningFanDuty(requestedFixedSpeed);
             settings.FixedFanSpeed = fixedOff ? 0 : settings.FixedRunningFanSpeed;
-            for (int i = 0; i < 6; i++)
+            NormalizeProtectionTemperatures();
+            for (int i = 0; i < 7; i++)
             {
                 settings.CustomSpeeds[i] = NormalizeFanDuty(settings.CustomSpeeds[i]);
                 if (i > 0 && settings.CustomSpeeds[i] < settings.CustomSpeeds[i - 1])
                     settings.CustomSpeeds[i] = settings.CustomSpeeds[i - 1];
             }
-            settings.CustomSpeeds[6] = 100;
+        }
+
+        private void NormalizeProtectionTemperatures()
+        {
+            int sustained = settings.SustainedFullBlastTemperature <= 0 ? 92 : settings.SustainedFullBlastTemperature;
+            settings.SustainedFullBlastTemperature = Math.Max(88, Math.Min(94, sustained));
+            int emergency = settings.EmergencyFullBlastTemperature <= 0 ? 97 : settings.EmergencyFullBlastTemperature;
+            settings.EmergencyFullBlastTemperature = Math.Max(
+                settings.SustainedFullBlastTemperature + 3,
+                Math.Min(100, emergency));
+            int release = settings.FullBlastReleaseTemperature <= 0 ? 87 : settings.FullBlastReleaseTemperature;
+            settings.FullBlastReleaseTemperature = Math.Max(
+                75,
+                Math.Min(Math.Min(89, settings.SustainedFullBlastTemperature - 3), release));
         }
 
         private int FixedFanDutyFromSlider()
