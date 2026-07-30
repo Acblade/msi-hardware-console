@@ -15,21 +15,29 @@ namespace MsiHardwareConsole
         private readonly bool editable;
         private readonly Brush accent;
         private readonly int maximumDuty;
+        private readonly bool compressedDutyAxis;
+        private readonly int sustainedProtectionTemperature;
+        private readonly int emergencyProtectionTemperature;
+        private readonly int releaseProtectionTemperature;
         private const double CompressedBandFraction = 0.12;
 
         public event EventHandler CurveChanged;
 
-        public FanCurveChart(FanCurve curve, bool editable, Brush accent)
+        public FanCurveChart(FanCurve curve, bool editable, Brush accent,
+            int sustainedProtectionTemperature = 0, int emergencyProtectionTemperature = 0, int releaseProtectionTemperature = 0)
         {
             this.curve = curve.Clone();
             this.editable = editable;
             this.accent = accent;
+            this.sustainedProtectionTemperature = sustainedProtectionTemperature;
+            this.emergencyProtectionTemperature = emergencyProtectionTemperature;
+            this.releaseProtectionTemperature = releaseProtectionTemperature;
             if (editable)
             {
                 for (int i = 0; i < 7; i++)
                 {
                     int speed = this.curve.Speeds[i];
-                    this.curve.Speeds[i] = speed <= 0 ? 0 : Math.Max(30, Math.Min(60, speed));
+                    this.curve.Speeds[i] = speed <= 0 ? 0 : speed >= 100 ? 100 : Math.Max(30, Math.Min(60, speed));
                     if (i > 0 && this.curve.Speeds[i] < this.curve.Speeds[i - 1])
                         this.curve.Speeds[i] = this.curve.Speeds[i - 1];
                 }
@@ -37,6 +45,7 @@ namespace MsiHardwareConsole
             maximumDuty = 60;
             for (int i = 0; i < this.curve.Speeds.Length; i++)
                 if (this.curve.Speeds[i] > 60) { maximumDuty = 100; break; }
+            compressedDutyAxis = editable || maximumDuty <= 60;
             MinHeight = 330;
             Cursor = editable ? Cursors.Hand : Cursors.Arrow;
             Focusable = true;
@@ -56,9 +65,9 @@ namespace MsiHardwareConsole
             dc.DrawRoundedRectangle(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(222, 229, 239)), 1),
                 new Rect(0.5, 0.5, ActualWidth - 1, ActualHeight - 1), 16, 16);
 
-            int[] dutyGrid = maximumDuty > 60
-                ? new[] { 0, 20, 40, 60, 80, 100 }
-                : new[] { 0, 30, 40, 50, 60, 100 };
+            int[] dutyGrid = compressedDutyAxis
+                ? new[] { 0, 30, 40, 50, 60, 100 }
+                : new[] { 0, 20, 40, 60, 80, 100 };
             for (int i = 0; i < dutyGrid.Length; i++)
             {
                 int p = dutyGrid[i];
@@ -66,15 +75,18 @@ namespace MsiHardwareConsole
                 dc.DrawLine(gridPen, new Point(left, y), new Point(left + width, y));
                 DrawText(dc, p + "%", 11, new Point(12, y - 8), new SolidColorBrush(Color.FromRgb(104, 117, 138)));
             }
-            for (int t = 40; t <= 90; t += 10)
+            for (int t = 40; t <= 100; t += 10)
             {
-                double x = left + width * ((t - 40) / 50.0);
+                double x = left + width * ((t - 40) / 60.0);
                 dc.DrawLine(gridPen, new Point(x, top), new Point(x, top + height));
                 DrawText(dc, t + "°C", 11, new Point(x - 13, top + height + 12), new SolidColorBrush(Color.FromRgb(104, 117, 138)));
             }
+            DrawProtectionMarker(dc, releaseProtectionTemperature, Localization.T("Restore", "恢复"), new SolidColorBrush(Color.FromRgb(22, 133, 106)), 0, left, top, width, height);
+            DrawProtectionMarker(dc, sustainedProtectionTemperature, Localization.T("Sustained", "持续"), new SolidColorBrush(Color.FromRgb(217, 120, 22)), 1, left, top, width, height);
+            DrawProtectionMarker(dc, emergencyProtectionTemperature, Localization.T("Emergency", "紧急"), new SolidColorBrush(Color.FromRgb(216, 74, 74)), 0, left, top, width, height);
             dc.DrawLine(axisPen, new Point(left, top + height), new Point(left + width, top + height));
             dc.DrawLine(axisPen, new Point(left, top), new Point(left, top + height));
-            if (maximumDuty <= 60)
+            if (compressedDutyAxis)
             {
                 DrawAxisBreak(dc, axisPen, left, top + height * (1 - DutyToAxisFraction(15)));
                 DrawAxisBreak(dc, axisPen, left, top + height * (1 - DutyToAxisFraction(80)));
@@ -100,7 +112,7 @@ namespace MsiHardwareConsole
             {
                 dc.DrawEllipse(Brushes.White, new Pen(accent, 3), points[i], 7.5, 7.5);
                 string label = curve.Temperatures[i] + "°  " + curve.Speeds[i] + "%";
-                double labelY = points[i].Y < top + 34 ? points[i].Y + 12 : points[i].Y - 25;
+                double labelY = points[i].Y < top + 34 ? points[i].Y + 24 : points[i].Y - 25;
                 DrawText(dc, label, 10, new Point(points[i].X - 22, labelY), new SolidColorBrush(Color.FromRgb(48, 64, 88)));
             }
         }
@@ -134,15 +146,15 @@ namespace MsiHardwareConsole
             Point mouse = e.GetPosition(this);
             double width = Math.Max(1, ActualWidth - 79);
             double height = Math.Max(1, ActualHeight - 71);
-            int temperature = (int)Math.Round(40 + ((mouse.X - 54) / width) * 50);
+            int temperature = (int)Math.Round(40 + ((mouse.X - 54) / width) * 60);
             double axisFraction = 1 - ((mouse.Y - 26) / height);
             int speed = (int)Math.Round(AxisFractionToDuty(axisFraction));
             speed = Math.Max(0, Math.Min(100, speed));
             // MSI accepts 0% as fan-off. Non-zero values below 30% are not a
             // reliable running range across laptops, so snap to 0 or 30%.
             if (speed > 0 && speed < 30) speed = speed < 15 ? 0 : 30;
+            if (speed > 60 && speed < 100) speed = speed < 80 ? 60 : 100;
             int i = draggedPoint;
-            if (speed > 60) speed = 60;
             if (i > 0)
             {
                 int minimum = curve.Temperatures[i - 1] + 3;
@@ -150,7 +162,7 @@ namespace MsiHardwareConsole
                 curve.Temperatures[i] = Math.Max(minimum, Math.Min(maximum, temperature));
             }
             int minimumSpeed = i == 0 ? 0 : curve.Speeds[i - 1];
-            int maximumSpeed = i == 6 ? 60 : Math.Min(60, curve.Speeds[i + 1]);
+            int maximumSpeed = i == 6 ? 100 : curve.Speeds[i + 1];
             curve.Speeds[i] = Math.Max(minimumSpeed, Math.Min(maximumSpeed, speed));
             InvalidateVisual();
             if (CurveChanged != null) CurveChanged(this, EventArgs.Empty);
@@ -169,7 +181,7 @@ namespace MsiHardwareConsole
 
         private Point ToPoint(int index, double left, double top, double width, double height)
         {
-            double x = left + width * ((Math.Max(40, Math.Min(90, curve.Temperatures[index])) - 40) / 50.0);
+            double x = left + width * ((Math.Max(40, Math.Min(100, curve.Temperatures[index])) - 40) / 60.0);
             double y = top + height * (1 - DutyToAxisFraction(curve.Speeds[index]));
             return new Point(x, y);
         }
@@ -177,7 +189,7 @@ namespace MsiHardwareConsole
         private double DutyToAxisFraction(double duty)
         {
             duty = Math.Max(0, Math.Min(100, duty));
-            if (maximumDuty > 60) return duty / 100.0;
+            if (!compressedDutyAxis) return duty / 100.0;
             if (duty <= 30) return CompressedBandFraction * duty / 30.0;
             if (duty <= 60)
                 return CompressedBandFraction + (1 - 2 * CompressedBandFraction) * (duty - 30) / 30.0;
@@ -187,7 +199,7 @@ namespace MsiHardwareConsole
         private double AxisFractionToDuty(double fraction)
         {
             fraction = Math.Max(0, Math.Min(1, fraction));
-            if (maximumDuty > 60) return fraction * 100;
+            if (!compressedDutyAxis) return fraction * 100;
             if (fraction <= CompressedBandFraction)
                 return 30 * fraction / CompressedBandFraction;
             if (fraction <= 1 - CompressedBandFraction)
@@ -201,6 +213,16 @@ namespace MsiHardwareConsole
             dc.DrawLine(axisPen, new Point(x - 4, y - 6), new Point(x + 4, y - 2));
             dc.DrawLine(axisPen, new Point(x + 4, y - 2), new Point(x - 4, y + 2));
             dc.DrawLine(axisPen, new Point(x - 4, y + 2), new Point(x + 4, y + 6));
+        }
+
+        private static void DrawProtectionMarker(DrawingContext dc, int temperature, string label, Brush brush, int row,
+            double left, double top, double width, double height)
+        {
+            if (temperature < 40 || temperature > 100) return;
+            double x = left + width * ((temperature - 40) / 60.0);
+            var pen = new Pen(brush, 1.4) { DashStyle = DashStyles.Dash };
+            dc.DrawLine(pen, new Point(x, top), new Point(x, top + height));
+            DrawText(dc, label + " " + temperature + "°", 9.5, new Point(Math.Min(x + 4, left + width - 70), top + 3 + row * 14), brush);
         }
 
         private static void DrawText(DrawingContext dc, string text, double size, Point origin, Brush brush)
@@ -344,7 +366,7 @@ namespace MsiHardwareConsole
             footer.Children.Add(new TextBlock
             {
                 Text = editable
-                    ? Localization.T("Available duty for all seven points: 0% or 30–60%.", "七个节点的可用转速：0% 或 30–60%。")
+                    ? Localization.T("Available duty for all seven points: 0%, 30–60%, or 100%.", "七个节点的可用转速：0%、30–60% 或 100%。")
                     : Localization.T("Temperature is horizontal; fan duty is vertical.", "横轴是温度，纵轴是风扇转速百分比。"),
                 Foreground = new SolidColorBrush(Color.FromRgb(104, 117, 138)),
                 FontSize = 11,

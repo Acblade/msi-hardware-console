@@ -90,6 +90,9 @@ namespace MsiHardwareConsole
         private bool modeUsesFullBlast;
         private DateTime fullBlastHighSinceUtc = DateTime.MinValue;
         private DateTime fullBlastCoolSinceUtc = DateTime.MinValue;
+        private DateTime curveFullBlastCoolSinceUtc = DateTime.MinValue;
+        private bool fullBlastTriggeredByProtection;
+        private bool fullBlastTriggeredByCurve;
         private const int FullBlastConfirmationSeconds = 20;
         private bool fixedFanOff;
         private bool exitRequested;
@@ -315,8 +318,8 @@ namespace MsiHardwareConsole
             var root = new StackPanel
             {
                 Margin = new Thickness(3, 18, 3, 8),
-                MaxWidth = 960,
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                MaxWidth = 820,
+                HorizontalAlignment = HorizontalAlignment.Left
             };
             var titleRow = new Grid();
             titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -378,6 +381,7 @@ namespace MsiHardwareConsole
                 Foreground = MutedBrush,
                 Margin = new Thickness(0, 4, 0, 0)
             });
+            root.SetBinding(FrameworkElement.WidthProperty, new Binding("ActualWidth") { Source = mainContentRoot });
             return root;
         }
 
@@ -570,8 +574,8 @@ namespace MsiHardwareConsole
             var root = new StackPanel
             {
                 Margin = new Thickness(0, -1, 0, 8),
-                MaxWidth = 960,
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                MaxWidth = 820,
+                HorizontalAlignment = HorizontalAlignment.Left
             };
             root.Children.Add(BuildProtectionTemperatureControl(
                 T("Sustained heat", "持续高温"), T("Starts 100% cooling after the set temperature is held for 20 seconds", "达到设定温度并持续 20 秒后，开启 100% 散热"),
@@ -586,6 +590,7 @@ namespace MsiHardwareConsole
                 70, 92, settings.FullBlastReleaseTemperature, GoodBrush,
                 out releaseProtectionSlider, out releaseProtectionValue));
             UpdateProtectionTemperatureLabels();
+            root.SetBinding(FrameworkElement.WidthProperty, new Binding("ActualWidth") { Source = mainContentRoot });
             return root;
         }
 
@@ -768,7 +773,7 @@ namespace MsiHardwareConsole
             AddModeCard(grid, "Fixed", T("Fixed", "固定"), T("Keep one constant fan duty", "始终保持同一转速"), T("Keeps the slider value while on; turns the ordinary fan off while preserving the thermal guard.", "开启时维持滑条设定；关闭时停止普通风扇，高温保护仍然有效。"), PurpleBrush, 0, 2, fixedExtra);
 
             var customExtra = new TextBlock { Text = T("Right-click to edit   ●━━●━━●", "右键编辑曲线   ●━━●━━●"), Foreground = AccentBrush, FontSize = 11, Margin = new Thickness(0, 10, 0, 0), FontWeight = FontWeights.SemiBold };
-            AddModeCard(grid, "Custom", T("Custom", "自定义"), T("Follow your temperature curve", "按你设置的温度曲线调速"), T("Right-click to edit; every point supports 0% or 30–60%.", "右键打开曲线编辑器；每个节点可设置为 0% 或 30–60%。"), AccentBrush, 1, 0, customExtra);
+            AddModeCard(grid, "Custom", T("Custom", "自定义"), T("Follow your temperature curve", "按你设置的温度曲线调速"), T("Right-click to edit; every point supports 0%, 30–60%, or 100%.", "右键打开曲线编辑器；每个节点可设置为 0%、30–60% 或 100%。"), AccentBrush, 1, 0, customExtra);
             AddModeCard(grid, "Silent", T("Silent", "静音"), T("Quieter under light load", "低负载时更安静"), T("Ramps gently with temperature; suited to office work, browsing, and light loads.", "风扇随温度缓慢提升，适合办公、网页和轻负载。"), TealBrush, 0, 1, null);
             AddModeCard(grid, "Balanced", T("Balanced", "均衡"), T("Everyday balance of heat and noise", "温度与噪音的日常平衡"), T("Ramps more actively than Silent; suited to most games and everyday use.", "升速比静音更积极，适合多数游戏和常规使用。"), GoodBrush, 1, 1, null);
             AddModeCard(grid, "Boost", T("Boost", "强冷"), T("Reach 60% earlier", "更早提升到 60%"), T("Prioritizes lower temperatures for gaming, rendering, and sustained heavy loads.", "优先压低温度，适合游戏、渲染与长时间高负载。"), WarningBrush, 1, 2, null);
@@ -997,47 +1002,90 @@ namespace MsiHardwareConsole
 
             int temperature = Math.Max(snapshot.CpuTemperature, snapshot.GpuTemperature);
             DateTime now = DateTime.UtcNow;
-
-            if (currentlyActive)
+            if (!currentlyActive)
             {
+                fullBlastTriggeredByProtection = false;
+                fullBlastTriggeredByCurve = false;
+                fullBlastCoolSinceUtc = DateTime.MinValue;
+                curveFullBlastCoolSinceUtc = DateTime.MinValue;
+            }
+
+            int curveFullBlastTemperature = GetCurveFullBlastTemperature(key, curve);
+            if (curveFullBlastTemperature < int.MaxValue)
+            {
+                if (temperature >= curveFullBlastTemperature)
+                {
+                    fullBlastTriggeredByCurve = true;
+                    curveFullBlastCoolSinceUtc = DateTime.MinValue;
+                }
+                else if (fullBlastTriggeredByCurve && temperature <= curveFullBlastTemperature - 3)
+                {
+                    if (curveFullBlastCoolSinceUtc == DateTime.MinValue) curveFullBlastCoolSinceUtc = now;
+                    if ((now - curveFullBlastCoolSinceUtc).TotalSeconds >= FullBlastConfirmationSeconds)
+                    {
+                        fullBlastTriggeredByCurve = false;
+                        curveFullBlastCoolSinceUtc = DateTime.MinValue;
+                    }
+                }
+                else curveFullBlastCoolSinceUtc = DateTime.MinValue;
+            }
+            else
+            {
+                fullBlastTriggeredByCurve = false;
+                curveFullBlastCoolSinceUtc = DateTime.MinValue;
+            }
+
+            if (temperature >= settings.EmergencyFullBlastTemperature)
+            {
+                fullBlastTriggeredByProtection = true;
                 fullBlastHighSinceUtc = DateTime.MinValue;
-                if (temperature <= settings.FullBlastReleaseTemperature)
+                fullBlastCoolSinceUtc = DateTime.MinValue;
+            }
+            else
+            {
+                if (!fullBlastTriggeredByProtection)
+                {
+                    if (temperature >= settings.SustainedFullBlastTemperature)
+                    {
+                        if (fullBlastHighSinceUtc == DateTime.MinValue) fullBlastHighSinceUtc = now;
+                        if ((now - fullBlastHighSinceUtc).TotalSeconds >= FullBlastConfirmationSeconds)
+                        {
+                            fullBlastTriggeredByProtection = true;
+                            fullBlastHighSinceUtc = DateTime.MinValue;
+                        }
+                    }
+                    else fullBlastHighSinceUtc = DateTime.MinValue;
+                }
+
+                if (fullBlastTriggeredByProtection && temperature <= settings.FullBlastReleaseTemperature)
                 {
                     if (fullBlastCoolSinceUtc == DateTime.MinValue) fullBlastCoolSinceUtc = now;
                     if ((now - fullBlastCoolSinceUtc).TotalSeconds >= FullBlastConfirmationSeconds)
                     {
-                        ResetFullBlastGuard();
-                        return false;
+                        fullBlastTriggeredByProtection = false;
+                        fullBlastCoolSinceUtc = DateTime.MinValue;
                     }
                 }
                 else fullBlastCoolSinceUtc = DateTime.MinValue;
-                return true;
             }
+            return fullBlastTriggeredByProtection || fullBlastTriggeredByCurve;
+        }
 
-            fullBlastCoolSinceUtc = DateTime.MinValue;
-            if (temperature >= settings.EmergencyFullBlastTemperature)
-            {
-                fullBlastHighSinceUtc = DateTime.MinValue;
-                return true;
-            }
-
-            if (temperature >= settings.SustainedFullBlastTemperature)
-            {
-                if (fullBlastHighSinceUtc == DateTime.MinValue) fullBlastHighSinceUtc = now;
-                if ((now - fullBlastHighSinceUtc).TotalSeconds >= FullBlastConfirmationSeconds)
-                {
-                    fullBlastHighSinceUtc = DateTime.MinValue;
-                    return true;
-                }
-            }
-            else fullBlastHighSinceUtc = DateTime.MinValue;
-            return false;
+        private static int GetCurveFullBlastTemperature(string key, FanCurve curve)
+        {
+            if (key != "Custom" || curve == null) return int.MaxValue;
+            for (int i = 0; i < curve.Speeds.Length; i++)
+                if (curve.Speeds[i] >= 100) return curve.Temperatures[i];
+            return int.MaxValue;
         }
 
         private void ResetFullBlastGuard()
         {
             fullBlastHighSinceUtc = DateTime.MinValue;
             fullBlastCoolSinceUtc = DateTime.MinValue;
+            curveFullBlastCoolSinceUtc = DateTime.MinValue;
+            fullBlastTriggeredByProtection = false;
+            fullBlastTriggeredByCurve = false;
         }
 
         private FanCurve GetCurveForMode(string key)
@@ -1060,9 +1108,10 @@ namespace MsiHardwareConsole
         {
             if (key == "Custom")
             {
-                var chart = new FanCurveChart(GetCurveForMode("Custom"), true, AccentBrush) { Height = 350 };
+                var chart = new FanCurveChart(GetCurveForMode("Custom"), true, AccentBrush,
+                    settings.SustainedFullBlastTemperature, settings.EmergencyFullBlastTemperature, settings.FullBlastReleaseTemperature) { Height = 350 };
                 ShowOverlay(T("Custom", "自定义"), T("Drag points, then save to write the curve to MSI WMI2.", "拖动节点后保存，曲线会立即写入 MSI WMI2。"), chart,
-                    T("All seven points allow 0% or 30–60%.", "七个节点均可用 0% 或 30–60%。"), T("Save and apply", "保存并应用"), delegate
+                    T("All seven points allow 0%, 30–60%, or 100%; 100% enables Full Blast.", "七个节点均可用 0%、30–60% 或 100%；100% 会启用全速散热。"), T("Save and apply", "保存并应用"), delegate
                 {
                     FanCurve result = chart.Curve;
                     settings.CustomTemperatures = result.Temperatures;
@@ -1120,8 +1169,9 @@ namespace MsiHardwareConsole
 
         private void ShowFanCurveOverlay(string title, string subtitle, FanCurve curve, Brush accent)
         {
-            var chart = new FanCurveChart(curve, false, accent) { Height = 350 };
-            ShowOverlay(title, subtitle, chart, T("Temperature is horizontal; fan duty is vertical.", "横轴是温度，纵轴是风扇转速百分比。"), null, null);
+            var chart = new FanCurveChart(curve, false, accent,
+                settings.SustainedFullBlastTemperature, settings.EmergencyFullBlastTemperature, settings.FullBlastReleaseTemperature) { Height = 350 };
+            ShowOverlay(title, subtitle, chart, T("Dashed lines show the restore, sustained, and emergency guard temperatures.", "虚线显示恢复、持续和紧急高温保护温度。"), null, null);
         }
 
         private void ShowPerformanceOverlay(string metric)
@@ -1618,7 +1668,10 @@ namespace MsiHardwareConsole
 
         internal void ShowCurvePreviewForQa()
         {
+            int previous = settings.CustomSpeeds[6];
+            settings.CustomSpeeds[6] = 100;
             OpenCurve("Custom");
+            settings.CustomSpeeds[6] = previous;
         }
 
         public void SaveViewportPreview(string path)
@@ -1779,6 +1832,7 @@ namespace MsiHardwareConsole
         private static int NormalizeFanDuty(int duty)
         {
             if (duty <= 0) return 0;
+            if (duty >= 100) return 100;
             return Math.Max(30, Math.Min(60, duty));
         }
 

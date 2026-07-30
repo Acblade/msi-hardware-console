@@ -1,11 +1,13 @@
 # Changelog
 
-## 0.1.8
+## 1.0.0
 
 - Moved the Thermal guard safety constraint into a concise subtitle beneath the section title
-- Limited the complete three-card control group to 960 px instead of only limiting its sliders
+- Left-aligned the complete Thermal guard group and capped it at 820 px
 - Kept the hover help focused on the relationship between Thermal guard and ordinary fan curves
 - Added compact broken-axis bands for the unavailable 0–30% and 60–100% ranges in ordinary fan-curve charts
+- Added restore, sustained, and emergency Thermal guard markers to every fan-curve chart
+- Custom curves now allow discrete 100% points that actively engage Full Blast at the selected temperature
 
 ## 0.1.7
 
