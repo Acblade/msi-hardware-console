@@ -21,6 +21,17 @@ namespace MsiHardwareConsole
         private readonly int releaseProtectionTemperature;
         private const double CompressedBandFraction = 0.12;
 
+        private sealed class VisualCurvePoint
+        {
+            public int Temperature;
+            public int Duty;
+            public Point Position;
+            public Brush Brush;
+            public string Label;
+            public bool IsProtection;
+            public int LabelRow;
+        }
+
         public event EventHandler CurveChanged;
 
         public FanCurveChart(FanCurve curve, bool editable, Brush accent,
@@ -81,9 +92,6 @@ namespace MsiHardwareConsole
                 dc.DrawLine(gridPen, new Point(x, top), new Point(x, top + height));
                 DrawText(dc, t + "°C", 11, new Point(x - 13, top + height + 12), new SolidColorBrush(Color.FromRgb(104, 117, 138)));
             }
-            DrawProtectionMarker(dc, releaseProtectionTemperature, Localization.T("Restore", "恢复"), new SolidColorBrush(Color.FromRgb(22, 133, 106)), 0, left, top, width, height);
-            DrawProtectionMarker(dc, sustainedProtectionTemperature, Localization.T("Sustained", "持续"), new SolidColorBrush(Color.FromRgb(217, 120, 22)), 1, left, top, width, height);
-            DrawProtectionMarker(dc, emergencyProtectionTemperature, Localization.T("Emergency", "紧急"), new SolidColorBrush(Color.FromRgb(216, 74, 74)), 0, left, top, width, height);
             dc.DrawLine(axisPen, new Point(left, top + height), new Point(left + width, top + height));
             dc.DrawLine(axisPen, new Point(left, top), new Point(left, top + height));
             if (compressedDutyAxis)
@@ -92,14 +100,13 @@ namespace MsiHardwareConsole
                 DrawAxisBreak(dc, axisPen, left, top + height * (1 - DutyToAxisFraction(80)));
             }
 
-            var points = new Point[7];
-            for (int i = 0; i < 7; i++) points[i] = ToPoint(i, left, top, width, height);
+            List<VisualCurvePoint> points = BuildVisualCurvePoints(left, top, width, height);
             var fill = new StreamGeometry();
             using (var context = fill.Open())
             {
-                context.BeginFigure(new Point(points[0].X, top + height), true, true);
-                foreach (Point point in points) context.LineTo(point, true, false);
-                context.LineTo(new Point(points[6].X, top + height), true, false);
+                context.BeginFigure(new Point(points[0].Position.X, top + height), true, true);
+                foreach (VisualCurvePoint point in points) context.LineTo(point.Position, true, false);
+                context.LineTo(new Point(points[points.Count - 1].Position.X, top + height), true, false);
             }
             fill.Freeze();
             var fillBrush = accent.Clone();
@@ -107,13 +114,26 @@ namespace MsiHardwareConsole
             dc.DrawGeometry(fillBrush, null, fill);
 
             var linePen = new Pen(accent, 3.2) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-            for (int i = 1; i < points.Length; i++) dc.DrawLine(linePen, points[i - 1], points[i]);
-            for (int i = 0; i < points.Length; i++)
+            for (int i = 1; i < points.Count; i++) dc.DrawLine(linePen, points[i - 1].Position, points[i].Position);
+            for (int i = 0; i < points.Count; i++)
             {
-                dc.DrawEllipse(Brushes.White, new Pen(accent, 3), points[i], 7.5, 7.5);
-                string label = curve.Temperatures[i] + "°  " + curve.Speeds[i] + "%";
-                double labelY = points[i].Y < top + 34 ? points[i].Y + 24 : points[i].Y - 25;
-                DrawText(dc, label, 10, new Point(points[i].X - 22, labelY), new SolidColorBrush(Color.FromRgb(48, 64, 88)));
+                VisualCurvePoint point = points[i];
+                if (point.IsProtection)
+                {
+                    dc.DrawEllipse(point.Brush, new Pen(Brushes.White, 2.2), point.Position, 8.5, 8.5);
+                    double labelY = point.Position.Y < top + 48
+                        ? point.Position.Y + 36 + point.LabelRow * 14
+                        : point.Position.Y - 25 - point.LabelRow * 14;
+                    DrawText(dc, point.Label, 9.5,
+                        new Point(Math.Max(left + 2, Math.Min(point.Position.X - 36, left + width - 94)), labelY), point.Brush);
+                }
+                else
+                {
+                    dc.DrawEllipse(Brushes.White, new Pen(accent, 3), point.Position, 7.5, 7.5);
+                    double labelY = point.Position.Y < top + 34 ? point.Position.Y + 24 : point.Position.Y - 25;
+                    DrawText(dc, point.Label, 10, new Point(point.Position.X - 22, labelY),
+                        new SolidColorBrush(Color.FromRgb(48, 64, 88)));
+                }
             }
         }
 
@@ -186,6 +206,73 @@ namespace MsiHardwareConsole
             return new Point(x, y);
         }
 
+        private List<VisualCurvePoint> BuildVisualCurvePoints(double left, double top, double width, double height)
+        {
+            var points = new List<VisualCurvePoint>();
+            for (int i = 0; i < curve.Temperatures.Length; i++)
+            {
+                points.Add(new VisualCurvePoint
+                {
+                    Temperature = curve.Temperatures[i],
+                    Duty = curve.Speeds[i],
+                    Position = ToPoint(i, left, top, width, height),
+                    Brush = accent,
+                    Label = curve.Temperatures[i] + "°  " + curve.Speeds[i] + "%"
+                });
+            }
+
+            AddProtectionPoint(points, releaseProtectionTemperature, InterpolateCurveDuty(releaseProtectionTemperature),
+                Localization.T("Restore", "恢复"), new SolidColorBrush(Color.FromRgb(22, 133, 106)), 0, left, top, width, height);
+            AddProtectionPoint(points, sustainedProtectionTemperature, 100,
+                Localization.T("Sustained", "持续"), new SolidColorBrush(Color.FromRgb(217, 120, 22)), 1, left, top, width, height);
+            AddProtectionPoint(points, emergencyProtectionTemperature, 100,
+                Localization.T("Emergency", "紧急"), new SolidColorBrush(Color.FromRgb(216, 74, 74)), 2, left, top, width, height);
+
+            points.Sort(delegate(VisualCurvePoint a, VisualCurvePoint b)
+            {
+                int temperatureOrder = a.Temperature.CompareTo(b.Temperature);
+                if (temperatureOrder != 0) return temperatureOrder;
+                return a.IsProtection.CompareTo(b.IsProtection);
+            });
+            return points;
+        }
+
+        private void AddProtectionPoint(List<VisualCurvePoint> points, int temperature, int duty,
+            string label, Brush brush, int labelRow, double left, double top, double width, double height)
+        {
+            if (temperature < 40 || temperature > 100) return;
+            duty = Math.Max(0, Math.Min(100, duty));
+            points.Add(new VisualCurvePoint
+            {
+                Temperature = temperature,
+                Duty = duty,
+                Position = new Point(
+                    left + width * ((temperature - 40) / 60.0),
+                    top + height * (1 - DutyToAxisFraction(duty))),
+                Brush = brush,
+                Label = label + " " + temperature + "°  " + duty + "%",
+                IsProtection = true,
+                LabelRow = labelRow
+            });
+        }
+
+        private int InterpolateCurveDuty(int temperature)
+        {
+            if (temperature <= curve.Temperatures[0]) return curve.Speeds[0];
+            int last = curve.Temperatures.Length - 1;
+            if (temperature >= curve.Temperatures[last]) return curve.Speeds[last];
+            for (int i = 1; i < curve.Temperatures.Length; i++)
+            {
+                if (temperature > curve.Temperatures[i]) continue;
+                int lowerTemperature = curve.Temperatures[i - 1];
+                int upperTemperature = curve.Temperatures[i];
+                if (upperTemperature <= lowerTemperature) return curve.Speeds[i];
+                double fraction = (temperature - lowerTemperature) / (double)(upperTemperature - lowerTemperature);
+                return (int)Math.Round(curve.Speeds[i - 1] + (curve.Speeds[i] - curve.Speeds[i - 1]) * fraction);
+            }
+            return curve.Speeds[last];
+        }
+
         private double DutyToAxisFraction(double duty)
         {
             duty = Math.Max(0, Math.Min(100, duty));
@@ -213,16 +300,6 @@ namespace MsiHardwareConsole
             dc.DrawLine(axisPen, new Point(x - 4, y - 6), new Point(x + 4, y - 2));
             dc.DrawLine(axisPen, new Point(x + 4, y - 2), new Point(x - 4, y + 2));
             dc.DrawLine(axisPen, new Point(x - 4, y + 2), new Point(x + 4, y + 6));
-        }
-
-        private static void DrawProtectionMarker(DrawingContext dc, int temperature, string label, Brush brush, int row,
-            double left, double top, double width, double height)
-        {
-            if (temperature < 40 || temperature > 100) return;
-            double x = left + width * ((temperature - 40) / 60.0);
-            var pen = new Pen(brush, 1.4) { DashStyle = DashStyles.Dash };
-            dc.DrawLine(pen, new Point(x, top), new Point(x, top + height));
-            DrawText(dc, label + " " + temperature + "°", 9.5, new Point(Math.Min(x + 4, left + width - 70), top + 3 + row * 14), brush);
         }
 
         private static void DrawText(DrawingContext dc, string text, double size, Point origin, Brush brush)

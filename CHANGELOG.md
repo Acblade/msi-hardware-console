@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+- Replaced dashed Thermal guard markers with green, orange, and red points connected directly into each fan curve
+- Restored the three compact Thermal guard cards in a single row with narrower 200 px sliders
+- Made custom temperature nodes visibly editable through 90°C, the verified firmware limit
+- Kept Thermal guard state independent and higher priority than Custom Full Blast activation
+
 ## 1.0.0
 
 - Moved the Thermal guard safety constraint into a concise subtitle beneath the section title
