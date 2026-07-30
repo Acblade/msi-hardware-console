@@ -312,11 +312,17 @@ namespace MsiHardwareConsole
 
         private UIElement BuildProtectionHeader()
         {
-            var grid = new Grid { Margin = new Thickness(3, 18, 3, 8) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.Children.Add(new TextBlock
+            var root = new StackPanel
+            {
+                Margin = new Thickness(3, 18, 3, 8),
+                MaxWidth = 960,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            var titleRow = new Grid();
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            titleRow.Children.Add(new TextBlock
             {
                 Text = T("Thermal guard", "高温保护"),
                 FontSize = 18,
@@ -354,17 +360,25 @@ namespace MsiHardwareConsole
                     LineHeight = 19,
                     Foreground = TextBrush,
                     Text = T(
-                        "Thermal guard is independent of ordinary fan curves. Outside Automatic mode, it only controls when emergency 100% cooling starts and stops.\n\n" +
-                        "Safety rule: emergency must be at least 3°C above sustained, and restore at least 3°C below. Conflicting values are corrected automatically.",
-                        "高温保护独立于普通风扇曲线，只在非自动模式下决定何时进入或退出 100% 紧急散热。\n\n" +
-                        "安全约束：紧急温度至少比持续温度高 3°C；恢复温度至少低 3°C。冲突的设置会自动修正。")
+                        "Thermal guard is independent of ordinary fan curves. Outside Automatic mode, it only controls when emergency 100% cooling starts and stops.",
+                        "高温保护独立于普通风扇曲线，只在非自动模式下决定何时进入或退出 100% 紧急散热。")
                 }
             };
             ToolTipService.SetInitialShowDelay(help, 120);
             ToolTipService.SetShowDuration(help, 30000);
             Grid.SetColumn(help, 1);
-            grid.Children.Add(help);
-            return grid;
+            titleRow.Children.Add(help);
+            root.Children.Add(titleRow);
+            root.Children.Add(new TextBlock
+            {
+                Text = T(
+                    "Safety rule: emergency must be at least 3°C above sustained, and restore at least 3°C below; conflicting values are corrected automatically.",
+                    "安全约束：紧急温度至少比持续温度高 3°C，恢复温度至少低 3°C；冲突设置会自动修正。"),
+                FontSize = 10.5,
+                Foreground = MutedBrush,
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+            return root;
         }
 
         private UIElement BuildPerformanceGrid()
@@ -553,7 +567,12 @@ namespace MsiHardwareConsole
 
         private UIElement BuildProtectionSettingsCard()
         {
-            var root = new StackPanel { Margin = new Thickness(0, -1, 0, 8) };
+            var root = new StackPanel
+            {
+                Margin = new Thickness(0, -1, 0, 8),
+                MaxWidth = 960,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
             root.Children.Add(BuildProtectionTemperatureControl(
                 T("Sustained heat", "持续高温"), T("Starts 100% cooling after the set temperature is held for 20 seconds", "达到设定温度并持续 20 秒后，开启 100% 散热"),
                 85, 95, settings.SustainedFullBlastTemperature, WarningBrush,
@@ -1595,6 +1614,11 @@ namespace MsiHardwareConsole
         internal void ShowPerformancePreviewForQa()
         {
             ShowPerformanceOverlay("CPU");
+        }
+
+        internal void ShowCurvePreviewForQa()
+        {
+            OpenCurve("Custom");
         }
 
         public void SaveViewportPreview(string path)

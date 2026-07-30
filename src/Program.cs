@@ -9,8 +9,8 @@ using System.Windows.Threading;
 [assembly: AssemblyProduct("MSI Hardware Console")]
 [assembly: AssemblyDescription("Unofficial MSI laptop hardware monitor and fan controller")]
 [assembly: AssemblyCompany("Acblade")]
-[assembly: AssemblyVersion("0.1.7.0")]
-[assembly: AssemblyFileVersion("0.1.7.0")]
+[assembly: AssemblyVersion("0.1.8.0")]
+[assembly: AssemblyFileVersion("0.1.8.0")]
 
 namespace MsiHardwareConsole
 {
@@ -41,6 +41,7 @@ namespace MsiHardwareConsole
             bool background = HasArgument(args, "--background");
             bool renderPreview = HasArgument(args, "--render-preview");
             bool renderOverlayPreview = HasArgument(args, "--render-overlay-preview");
+            bool renderCurvePreview = HasArgument(args, "--render-curve-preview");
             bool skipAutoStartSetup = HasArgument(args, "--no-autostart-setup");
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             app.DispatcherUnhandledException += delegate(object sender, DispatcherUnhandledExceptionEventArgs e) { Log("DISPATCHER_UNHANDLED " + e.Exception); };
@@ -60,14 +61,19 @@ namespace MsiHardwareConsole
             };
 
             window.InitializeRuntime();
-            if (renderPreview || renderOverlayPreview)
+            if (renderPreview || renderOverlayPreview || renderCurvePreview)
             {
                 window.Show();
                 var previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
                 previewTimer.Tick += delegate
                 {
                     previewTimer.Stop();
-                    if (renderOverlayPreview)
+                    if (renderCurvePreview)
+                    {
+                        window.ShowCurvePreviewForQa();
+                        window.SaveViewportPreview(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "curve-preview.png"));
+                    }
+                    else if (renderOverlayPreview)
                     {
                         window.ShowPerformancePreviewForQa();
                         window.SaveViewportPreview(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "overlay-preview.png"));

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8
+
+- Moved the Thermal guard safety constraint into a concise subtitle beneath the section title
+- Limited the complete three-card control group to 960 px instead of only limiting its sliders
+- Kept the hover help focused on the relationship between Thermal guard and ordinary fan curves
+- Added compact broken-axis bands for the unavailable 0–30% and 60–100% ranges in ordinary fan-curve charts
+
 ## 0.1.7
 
 - Removed duplicated per-control explanations from the Thermal guard hover help
