@@ -1,29 +1,33 @@
-# MSI Hardware Console 0.1.8
+# MSI Hardware Console 1.0.0
 
 ## English
 
-This release corrects the scope of the previous Thermal guard width refinement.
+Version 1.0.0 completes the Thermal guard and fan-curve interaction design.
 
-- The safety constraint is now shown as small text directly beneath the Thermal guard title
-- Hover help contains only the relationship between Thermal guard and ordinary fan curves
-- The complete three-card control group is capped at 960 px, rather than limiting only the sliders
-- The cards still shrink responsively on narrower windows
-- Ordinary fan-curve charts show compact broken-axis bands for 0–30% and 60–100%, while keeping 30–60% as the main editing area
-- Editable points remain limited to 0% or 30–60%
-- Protection logic and hardware compatibility are unchanged
+- The complete Thermal guard group is left-aligned and capped at 820 px
+- The safety constraint remains visible beneath the section title
+- Every fan-curve chart shows the configured restore, sustained, and emergency guard temperatures as colored dashed lines
+- Ordinary curves keep compact broken-axis bands for 0–30% and 60–100%
+- Custom points allow 0%, 30–60%, or the discrete 100% Full Blast value
+- Reaching a custom 100% point actively enables MSI Full Blast instead of relying only on the stored firmware curve value
+- Custom Full Blast releases after remaining 3°C below its selected temperature for 20 seconds
+- The independent Thermal guard remains active at the same time
+- Protection ranges, compatibility allowlist, and firmware read-back checks remain enforced
 
 The executable is unsigned; verify the attached SHA-256 file before running it.
 
 ## 中文
 
-此版本修正上个版本对“高温保护”宽度要求的理解。
+1.0.0 完成了高温保护与风扇曲线之间的交互设计。
 
-- 安全约束以小字直接显示在“高温保护”标题下方
-- 问号悬停提示只保留高温保护与普通风扇曲线之间的关系
-- 限制为最大 960 像素的是三张设置卡片整体，而不只是其中的滑条
-- 较窄窗口下仍会自适应缩短
-- 普通风扇曲线以压缩断轴显示 0–30% 和 60–100%，主要绘图区仍保留给 30–60%
-- 可编辑节点仍只能设为 0% 或 30–60%
-- 高温保护逻辑和硬件兼容范围均未改变
+- 高温保护整体左对齐，最大宽度收窄至 820 像素
+- 安全约束继续显示在标题下方
+- 所有风扇曲线都用彩色虚线显示当前设置的恢复、持续和紧急高温保护温度
+- 普通曲线继续以压缩断轴显示 0–30% 和 60–100%
+- 自定义节点可以选择 0%、30–60% 或独立的 100% 全速值
+- 到达自定义 100% 节点温度时，应用会主动启用 MSI 全速散热，不再只依赖固件曲线数值
+- 温度低于该节点 3°C 并持续 20 秒后退出自定义全速
+- 独立高温保护仍会同时生效
+- 保护范围、兼容机型白名单和固件回读校验均保持不变
 
 当前可执行文件没有代码签名，运行前请核对随 Release 提供的 SHA-256。
