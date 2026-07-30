@@ -14,6 +14,7 @@ namespace MsiHardwareConsole
         private int draggedPoint = -1;
         private readonly bool editable;
         private readonly Brush accent;
+        private readonly int maximumDuty;
 
         public event EventHandler CurveChanged;
 
@@ -32,6 +33,9 @@ namespace MsiHardwareConsole
                         this.curve.Speeds[i] = this.curve.Speeds[i - 1];
                 }
             }
+            maximumDuty = 60;
+            for (int i = 0; i < this.curve.Speeds.Length; i++)
+                if (this.curve.Speeds[i] > 60) { maximumDuty = 100; break; }
             MinHeight = 330;
             Cursor = editable ? Cursors.Hand : Cursors.Arrow;
             Focusable = true;
@@ -51,9 +55,9 @@ namespace MsiHardwareConsole
             dc.DrawRoundedRectangle(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(222, 229, 239)), 1),
                 new Rect(0.5, 0.5, ActualWidth - 1, ActualHeight - 1), 16, 16);
 
-            for (int p = 0; p <= 100; p += 20)
+            for (int p = 0; p <= maximumDuty; p += 20)
             {
-                double y = top + height * (1 - p / 100.0);
+                double y = top + height * (1 - p / (double)maximumDuty);
                 dc.DrawLine(gridPen, new Point(left, y), new Point(left + width, y));
                 DrawText(dc, p + "%", 11, new Point(12, y - 8), new SolidColorBrush(Color.FromRgb(104, 117, 138)));
             }
@@ -121,8 +125,8 @@ namespace MsiHardwareConsole
             double width = Math.Max(1, ActualWidth - 79);
             double height = Math.Max(1, ActualHeight - 71);
             int temperature = (int)Math.Round(40 + ((mouse.X - 54) / width) * 50);
-            int speed = (int)Math.Round((1 - ((mouse.Y - 26) / height)) * 100);
-            speed = Math.Max(0, Math.Min(100, speed));
+            int speed = (int)Math.Round((1 - ((mouse.Y - 26) / height)) * maximumDuty);
+            speed = Math.Max(0, Math.Min(maximumDuty, speed));
             // MSI accepts 0% as fan-off. Non-zero values below 30% are not a
             // reliable running range across laptops, so snap to 0 or 30%.
             if (speed > 0 && speed < 30) speed = speed < 15 ? 0 : 30;
@@ -155,7 +159,7 @@ namespace MsiHardwareConsole
         private Point ToPoint(int index, double left, double top, double width, double height)
         {
             double x = left + width * ((Math.Max(40, Math.Min(90, curve.Temperatures[index])) - 40) / 50.0);
-            double y = top + height * (1 - Math.Max(0, Math.Min(100, curve.Speeds[index])) / 100.0);
+            double y = top + height * (1 - Math.Max(0, Math.Min(maximumDuty, curve.Speeds[index])) / (double)maximumDuty);
             return new Point(x, y);
         }
 

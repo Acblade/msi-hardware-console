@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- Promoted Thermal guard to a top-level section between Fan control and Startup
+- Ordinary fan-curve charts now show only their usable 0–60% range
+- Expanded adjustable guard ranges to 85–95°C sustained, 90–100°C immediate, and 70–92°C release
+
 ## 0.1.4
 
 - Moved thermal-guard controls into a dedicated panel below Fan control
