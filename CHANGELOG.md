@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.7
+
+- Removed duplicated per-control explanations from the Thermal guard hover help
+- Capped all three Thermal guard sliders at a consistent 460 px width on wide windows
+
 ## 0.1.6
 
 - Redesigned Thermal guard as three independent horizontal controls on a transparent section background

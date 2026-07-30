@@ -355,14 +355,8 @@ namespace MsiHardwareConsole
                     Foreground = TextBrush,
                     Text = T(
                         "Thermal guard is independent of ordinary fan curves. Outside Automatic mode, it only controls when emergency 100% cooling starts and stops.\n\n" +
-                        "Sustained heat: starts 100% after the set temperature is held for 20 seconds.\n" +
-                        "Emergency heat: starts 100% immediately at the set temperature.\n" +
-                        "Restore curve: leaves 100% and restores the active mode after staying below the set temperature for 20 seconds.\n\n" +
                         "Safety rule: emergency must be at least 3°C above sustained, and restore at least 3°C below. Conflicting values are corrected automatically.",
                         "高温保护独立于普通风扇曲线，只在非自动模式下决定何时进入或退出 100% 紧急散热。\n\n" +
-                        "持续高温：达到设置温度并持续 20 秒后进入 100%。\n" +
-                        "紧急高温：达到设置温度后立即进入 100%。\n" +
-                        "恢复曲线：降到设置温度并持续 20 秒后退出 100%，恢复当前模式。\n\n" +
                         "安全约束：紧急温度至少比持续温度高 3°C；恢复温度至少低 3°C。冲突的设置会自动修正。")
                 }
             };
@@ -615,7 +609,12 @@ namespace MsiHardwareConsole
             Grid.SetColumn(labels, 1);
             content.Children.Add(labels);
 
-            var sliderArea = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            var sliderArea = new StackPanel
+            {
+                MaxWidth = 460,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Center
+            };
             slider = new Slider
             {
                 Minimum = minimum,
