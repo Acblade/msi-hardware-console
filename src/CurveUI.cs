@@ -15,6 +15,7 @@ namespace MsiHardwareConsole
         private readonly bool editable;
         private readonly Brush accent;
         private readonly int maximumDuty;
+        private const double CompressedBandFraction = 0.12;
 
         public event EventHandler CurveChanged;
 
@@ -55,9 +56,13 @@ namespace MsiHardwareConsole
             dc.DrawRoundedRectangle(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(222, 229, 239)), 1),
                 new Rect(0.5, 0.5, ActualWidth - 1, ActualHeight - 1), 16, 16);
 
-            for (int p = 0; p <= maximumDuty; p += 20)
+            int[] dutyGrid = maximumDuty > 60
+                ? new[] { 0, 20, 40, 60, 80, 100 }
+                : new[] { 0, 30, 40, 50, 60, 100 };
+            for (int i = 0; i < dutyGrid.Length; i++)
             {
-                double y = top + height * (1 - p / (double)maximumDuty);
+                int p = dutyGrid[i];
+                double y = top + height * (1 - DutyToAxisFraction(p));
                 dc.DrawLine(gridPen, new Point(left, y), new Point(left + width, y));
                 DrawText(dc, p + "%", 11, new Point(12, y - 8), new SolidColorBrush(Color.FromRgb(104, 117, 138)));
             }
@@ -69,6 +74,11 @@ namespace MsiHardwareConsole
             }
             dc.DrawLine(axisPen, new Point(left, top + height), new Point(left + width, top + height));
             dc.DrawLine(axisPen, new Point(left, top), new Point(left, top + height));
+            if (maximumDuty <= 60)
+            {
+                DrawAxisBreak(dc, axisPen, left, top + height * (1 - DutyToAxisFraction(15)));
+                DrawAxisBreak(dc, axisPen, left, top + height * (1 - DutyToAxisFraction(80)));
+            }
 
             var points = new Point[7];
             for (int i = 0; i < 7; i++) points[i] = ToPoint(i, left, top, width, height);
@@ -125,8 +135,9 @@ namespace MsiHardwareConsole
             double width = Math.Max(1, ActualWidth - 79);
             double height = Math.Max(1, ActualHeight - 71);
             int temperature = (int)Math.Round(40 + ((mouse.X - 54) / width) * 50);
-            int speed = (int)Math.Round((1 - ((mouse.Y - 26) / height)) * maximumDuty);
-            speed = Math.Max(0, Math.Min(maximumDuty, speed));
+            double axisFraction = 1 - ((mouse.Y - 26) / height);
+            int speed = (int)Math.Round(AxisFractionToDuty(axisFraction));
+            speed = Math.Max(0, Math.Min(100, speed));
             // MSI accepts 0% as fan-off. Non-zero values below 30% are not a
             // reliable running range across laptops, so snap to 0 or 30%.
             if (speed > 0 && speed < 30) speed = speed < 15 ? 0 : 30;
@@ -159,8 +170,37 @@ namespace MsiHardwareConsole
         private Point ToPoint(int index, double left, double top, double width, double height)
         {
             double x = left + width * ((Math.Max(40, Math.Min(90, curve.Temperatures[index])) - 40) / 50.0);
-            double y = top + height * (1 - Math.Max(0, Math.Min(maximumDuty, curve.Speeds[index])) / (double)maximumDuty);
+            double y = top + height * (1 - DutyToAxisFraction(curve.Speeds[index]));
             return new Point(x, y);
+        }
+
+        private double DutyToAxisFraction(double duty)
+        {
+            duty = Math.Max(0, Math.Min(100, duty));
+            if (maximumDuty > 60) return duty / 100.0;
+            if (duty <= 30) return CompressedBandFraction * duty / 30.0;
+            if (duty <= 60)
+                return CompressedBandFraction + (1 - 2 * CompressedBandFraction) * (duty - 30) / 30.0;
+            return 1 - CompressedBandFraction + CompressedBandFraction * (duty - 60) / 40.0;
+        }
+
+        private double AxisFractionToDuty(double fraction)
+        {
+            fraction = Math.Max(0, Math.Min(1, fraction));
+            if (maximumDuty > 60) return fraction * 100;
+            if (fraction <= CompressedBandFraction)
+                return 30 * fraction / CompressedBandFraction;
+            if (fraction <= 1 - CompressedBandFraction)
+                return 30 + 30 * (fraction - CompressedBandFraction) / (1 - 2 * CompressedBandFraction);
+            return 60 + 40 * (fraction - (1 - CompressedBandFraction)) / CompressedBandFraction;
+        }
+
+        private static void DrawAxisBreak(DrawingContext dc, Pen axisPen, double x, double y)
+        {
+            dc.DrawRectangle(Brushes.White, null, new Rect(x - 6, y - 7, 12, 14));
+            dc.DrawLine(axisPen, new Point(x - 4, y - 6), new Point(x + 4, y - 2));
+            dc.DrawLine(axisPen, new Point(x + 4, y - 2), new Point(x - 4, y + 2));
+            dc.DrawLine(axisPen, new Point(x - 4, y + 2), new Point(x + 4, y + 6));
         }
 
         private static void DrawText(DrawingContext dc, string text, double size, Point origin, Brush brush)
