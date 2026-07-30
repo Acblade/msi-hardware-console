@@ -206,9 +206,10 @@ namespace MsiHardwareConsole
             root.Children.Add(BuildStorageGrid());
             fanHeaderElement = BuildFanHeader();
             root.Children.Add(fanHeaderElement);
-            root.Children.Add(BuildProtectionSettingsCard());
             root.Children.Add(BuildBlastCard());
             root.Children.Add(BuildModeGrid());
+            root.Children.Add(SectionHeader(T("Thermal guard", "高温保护"), null));
+            root.Children.Add(BuildProtectionSettingsCard());
             root.Children.Add(SectionHeader(T("Startup and notification area", "启动与托盘"), null));
             root.Children.Add(BuildSettingsCard());
             root.Children.Add(new TextBlock
@@ -513,7 +514,7 @@ namespace MsiHardwareConsole
             };
             heading.Children.Add(icon);
             var headingText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            headingText.Children.Add(new TextBlock { Text = T("Thermal guard", "高温保护"), FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = TextBrush });
+            headingText.Children.Add(new TextBlock { Text = T("Independent 100% cooling rules", "独立 100% 散热规则"), FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = TextBrush });
             headingText.Children.Add(new TextBlock
             {
                 Text = T("Independent of fan curves; only controls when emergency 100% cooling starts and stops", "独立于风扇曲线，只决定何时进入或退出 100% 紧急散热"),
@@ -527,18 +528,18 @@ namespace MsiHardwareConsole
 
             var controls = new UniformGrid { Columns = 3, Margin = new Thickness(0, 14, 0, 0) };
             controls.Children.Add(BuildProtectionTemperatureControl(
-                T("Sustained heat", "持续高温"), T("Waits 20 seconds", "达到后等待 20 秒"), T("Enter 100% cooling", "进入 100% 散热"), T("Adjustable: 88–94°C", "可调范围 88–94°C"),
-                88, 94, settings.SustainedFullBlastTemperature, WarningBrush,
+                T("Sustained heat", "持续高温"), T("Waits 20 seconds", "达到后等待 20 秒"), T("Enter 100% cooling", "进入 100% 散热"), T("Adjustable: 85–95°C", "可调范围 85–95°C"),
+                85, 95, settings.SustainedFullBlastTemperature, WarningBrush,
                 out sustainedProtectionSlider, out sustainedProtectionValue,
                 T("Enables 100% after this temperature is sustained for 20 seconds", "达到该温度并持续 20 秒后开启 100%")));
             controls.Children.Add(BuildProtectionTemperatureControl(
-                T("Emergency heat", "紧急高温"), T("No waiting", "达到后无需等待"), T("Enter 100% immediately", "立即进入 100% 散热"), T("Adjustable: 95–100°C", "可调范围 95–100°C"),
-                95, 100, settings.EmergencyFullBlastTemperature, DangerBrush,
+                T("Emergency heat", "紧急高温"), T("No waiting", "达到后无需等待"), T("Enter 100% immediately", "立即进入 100% 散热"), T("Adjustable: 90–100°C", "可调范围 90–100°C"),
+                90, 100, settings.EmergencyFullBlastTemperature, DangerBrush,
                 out emergencyProtectionSlider, out emergencyProtectionValue,
                 T("Enables 100% immediately at this temperature", "达到该温度后立即开启 100%")));
             controls.Children.Add(BuildProtectionTemperatureControl(
-                T("Restore curve", "恢复曲线"), T("Waits 20 seconds after cooling", "降温后等待 20 秒"), T("Leave 100% and restore the active mode", "退出 100% 并恢复当前模式"), T("Adjustable: 75–89°C", "可调范围 75–89°C"),
-                75, 89, settings.FullBlastReleaseTemperature, GoodBrush,
+                T("Restore curve", "恢复曲线"), T("Waits 20 seconds after cooling", "降温后等待 20 秒"), T("Leave 100% and restore the active mode", "退出 100% 并恢复当前模式"), T("Adjustable: 70–92°C", "可调范围 70–92°C"),
+                70, 92, settings.FullBlastReleaseTemperature, GoodBrush,
                 out releaseProtectionSlider, out releaseProtectionValue,
                 T("Restores the selected curve after staying below this temperature for 20 seconds", "降到该温度并持续 20 秒后恢复所选曲线")));
             root.Children.Add(controls);
@@ -1666,15 +1667,15 @@ namespace MsiHardwareConsole
         private void NormalizeProtectionTemperatures()
         {
             int sustained = settings.SustainedFullBlastTemperature <= 0 ? 92 : settings.SustainedFullBlastTemperature;
-            settings.SustainedFullBlastTemperature = Math.Max(88, Math.Min(94, sustained));
+            settings.SustainedFullBlastTemperature = Math.Max(85, Math.Min(95, sustained));
             int emergency = settings.EmergencyFullBlastTemperature <= 0 ? 97 : settings.EmergencyFullBlastTemperature;
             settings.EmergencyFullBlastTemperature = Math.Max(
                 settings.SustainedFullBlastTemperature + 3,
-                Math.Min(100, emergency));
+                Math.Max(90, Math.Min(100, emergency)));
             int release = settings.FullBlastReleaseTemperature <= 0 ? 87 : settings.FullBlastReleaseTemperature;
             settings.FullBlastReleaseTemperature = Math.Max(
-                75,
-                Math.Min(Math.Min(89, settings.SustainedFullBlastTemperature - 3), release));
+                70,
+                Math.Min(Math.Min(92, settings.SustainedFullBlastTemperature - 3), release));
         }
 
         private int FixedFanDutyFromSlider()
