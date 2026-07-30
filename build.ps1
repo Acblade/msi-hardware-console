@@ -55,7 +55,7 @@ Copy-Item -LiteralPath (Join-Path $root 'docs\images\dashboard-en.png') -Destina
 Copy-Item -LiteralPath (Join-Path $root 'docs\images\dashboard-zh-CN.png') -Destination (Join-Path $distImages 'dashboard-zh-CN.png') -Force
 
 if (-not $SkipPackage) {
-    $zip = Join-Path $artifacts 'MSI-Hardware-Console-v0.1.5-win-x64.zip'
+    $zip = Join-Path $artifacts 'MSI-Hardware-Console-v0.1.6-win-x64.zip'
     if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
     Compress-Archive -Path (Join-Path $dist '*') -DestinationPath $zip -CompressionLevel Optimal
     Write-Output $zip

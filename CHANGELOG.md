@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+- Redesigned Thermal guard as three independent horizontal controls on a transparent section background
+- Moved the detailed behavior and safety guidance into a compact hover-help icon beside the section title
+- Preserved all existing temperature ranges, delays, and automatic 3°C safety separation
+
 ## 0.1.5
 
 - Promoted Thermal guard to a top-level section between Fan control and Startup
